@@ -315,6 +315,7 @@ input[type="file"] { display: none; }
   .field-grid, .field-grid.three { grid-template-columns: 1fr; }
 }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
 <div class="app">
@@ -326,6 +327,7 @@ input[type="file"] { display: none; }
   <div class="tabs">
     <button class="tab-btn active" data-tab="coordPanel">地図XML → DXF</button>
     <button class="tab-btn" data-tab="elevPanel">標高データ → DXF</button>
+    <button class="tab-btn" data-tab="demSearchPanel">DEM 検索</button>
   </div>
 
   <div class="content">
@@ -384,6 +386,31 @@ input[type="file"] { display: none; }
       <div class="panel-grid">
         <div>
           <div class="section">
+            <h2>データソース</h2>
+            <div style="display:flex;gap:24px;margin-bottom:10px">
+              <label class="check"><input type="radio" name="elevSrc" value="tile" id="elevSrcTile" checked> 地理院タイルAPI</label>
+              <label class="check"><input type="radio" name="elevSrc" value="file" id="elevSrcFile"> 基盤地図情報DEMファイル</label>
+            </div>
+            <div id="demFileArea" style="display:none">
+              <p class="hint" style="margin-bottom:8px">FG-GML-XXXXXX-DEM1A-XXXXXXXX.zip をドロップ</p>
+              <div class="drop-zone" id="demFileDrop" style="padding:20px 16px">
+                <span class="icon">📦</span>
+                <div class="main">DEM ZIPをここにドロップ</div>
+                <div class="sub">クリックしてファイルを選択（.zip / .xml）</div>
+              </div>
+              <input type="file" id="demFileInput" accept=".zip,.xml">
+              <div class="file-badge" id="demFileBadge">
+                <div class="info">
+                  <div class="name" id="demFileName">-</div>
+                  <div class="size" id="demFileSize">-</div>
+                </div>
+                <button class="rm" id="demFileRemove" type="button">×</button>
+              </div>
+              <div class="message warn" id="demFileInfo"></div>
+            </div>
+          </div>
+
+          <div class="section">
             <h2>Step 1. 変換範囲の決定</h2>
             <p class="hint">範囲は手入力、または地図XMLから自動読込できます。XMLからの自動読込は、図郭座標が経度・緯度で読める場合に限ります。</p>
 
@@ -406,6 +433,31 @@ input[type="file"] { display: none; }
               </div>
             </div>
 
+            <div class="field" style="margin-top:12px">
+              <label for="coordZone">公共座標系の系番号（XMLから範囲を読み込む場合）</label>
+              <select id="coordZone">
+                <option value="0">自動検出</option>
+                <option value="1">1系 — 長崎・鹿児島西部</option>
+                <option value="2">2系 — 福岡・佐賀・熊本・大分・宮崎・鹿児島</option>
+                <option value="3">3系 — 山口・島根・広島</option>
+                <option value="4">4系 — 香川・愛媛・徳島・高知</option>
+                <option value="5">5系 — 兵庫・鳥取・岡山</option>
+                <option value="6">6系 — 京都・大阪・福井・滋賀・三重・奈良・和歌山</option>
+                <option value="7">7系 — 石川・富山・岐阜・愛知</option>
+                <option value="8">8系 — 長野・新潟・静岡・山梨・福島・栃木</option>
+                <option value="9">9系 — 東京・神奈川・千葉・埼玉・茨城・群馬等</option>
+                <option value="10">10系 — 青森・秋田・山形・岩手・宮城</option>
+                <option value="11">11系 — 北海道西部（小樽・函館等）</option>
+                <option value="12">12系 — 北海道中部（札幌・旭川等）</option>
+                <option value="13">13系 — 北海道東部（網走・釧路等）</option>
+                <option value="14">14系 — 諸島（小笠原・南鳥島）</option>
+                <option value="15">15系 — 沖縄本島・奄美大島等</option>
+                <option value="16">16系 — 石垣島・西表島等</option>
+                <option value="17">17系 — 沖永良部・与論等</option>
+                <option value="18">18系 — 硫黄島</option>
+                <option value="19">19系 — 南大東島</option>
+              </select>
+            </div>
             <div class="btn-row">
               <button class="btn secondary" id="loadRangeFromXmlBtn" type="button">地図XMLから範囲読込</button>
             </div>
@@ -422,7 +474,7 @@ input[type="file"] { display: none; }
             <div class="message warn" id="rangeWarnBox"></div>
           </div>
 
-          <div class="section">
+          <div class="section" id="tileApiSection">
             <h2>Step 2. DL前確認</h2>
             <div class="field-grid three">
               <div class="field">
@@ -527,6 +579,57 @@ DEM10B (dem_png): Z 1-14</div>
         </aside>
       </div>
     </section>
+    <section class="panel" id="demSearchPanel">
+      <div style="display:flex;flex-wrap:wrap;gap:20px">
+        <div style="flex:1;min-width:300px">
+          <div id="demMapEl" style="height:480px;border-radius:12px;border:1px solid var(--line);background:#0d1420"></div>
+        </div>
+        <div style="width:260px;min-width:220px;display:grid;gap:14px;align-content:start">
+          <div class="section">
+            <h2>住所検索</h2>
+            <div class="field">
+              <label for="demAddressInput">住所・地名</label>
+              <input id="demAddressInput" type="text" placeholder="例: 長野市大字長野">
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="demAddrSearchBtn" type="button">検索</button>
+            </div>
+            <div class="message warn" id="demAddrWarn"></div>
+          </div>
+          <div class="section">
+            <h2>DEM種別</h2>
+            <div class="field">
+              <label for="demSearchType">データ種別</label>
+              <select id="demSearchType">
+                <option value="DEM1A">DEM1A — 1mメッシュ（航空レーザー）</option>
+                <option value="DEM5A">DEM5A — 5mメッシュ（航空レーザー）</option>
+                <option value="DEM5B">DEM5B — 5mメッシュ（写真測量）</option>
+                <option value="DEM5C">DEM5C — 5mメッシュ（地形図）</option>
+              </select>
+            </div>
+            <p class="hint" style="margin-top:8px">ズーム9以上でメッシュ枠が表示されます。クリックして選択。</p>
+          </div>
+          <div class="section">
+            <h2>選択メッシュ</h2>
+            <div id="demMeshList"><p class="hint">地図上のセルをクリックして選択</p></div>
+            <div id="demDlRow" class="btn-row" style="display:none;flex-direction:column;gap:8px;margin-top:10px">
+              <button class="btn" id="demDlBtn" type="button">基盤地図情報サービスを開く</button>
+              <button class="btn secondary" id="demClearBtn" type="button">選択をクリア</button>
+            </div>
+          </div>
+          <div class="section">
+            <h2>ダウンロード手順</h2>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.2">
+              <li>住所検索で地図を移動</li>
+              <li>メッシュをクリックして選択</li>
+              <li>「基盤地図情報サービスを開く」</li>
+              <li>ログイン後にZIPをDL</li>
+              <li>標高タブでZIPをドロップ</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -549,10 +652,10 @@ const MAP_TAGS = {
   landNumber: '\u5730\u756A',
   mapNumber: '\u5730\u56F3\u756A\u53F7',
   scale: '\u7E2E\u5C3A',
-  northEast: '\u5317\u6771\u5EA7\u6A19',
-  southEast: '\u5357\u6771\u5EA7\u6A19',
-  southWest: '\u5357\u897F\u5EA7\u6A19',
-  northWest: '\u5317\u897F\u5EA7\u6A19'
+  northEast: '\u53F3\u4E0A\u5EA7\u6A19',
+  southEast: '\u53F3\u4E0B\u5EA7\u6A19',
+  southWest: '\u5DE6\u4E0B\u5EA7\u6A19',
+  northWest: '\u5DE6\u4E0A\u5EA7\u6A19'
 };
 const DEM_TILE_CONFIG = {
   dem1a_png: { label: 'DEM1A PNG', minZoom: 1, maxZoom: 17 },
@@ -664,6 +767,107 @@ async function readXmlDocFromFile(file) {
   return { xmlText, doc };
 }
 
+/* -------------------- 公共座標系 → WGS84 変換 -------------------- */
+/* 平面直角座標系19系の原点 [lat0_deg, lon0_deg] */
+const ZONE_ORIGINS = [
+  null,
+  [33, 129.5],           // 1系
+  [33, 131.0],           // 2系
+  [36, 132+10/60],       // 3系
+  [33, 133.5],           // 4系
+  [36, 134+20/60],       // 5系
+  [36, 136.0],           // 6系
+  [36, 137+10/60],       // 7系
+  [36, 138.5],           // 8系
+  [36, 139+50/60],       // 9系
+  [40, 140+50/60],       // 10系
+  [44, 140.25],          // 11系
+  [44, 142.25],          // 12系
+  [44, 144.25],          // 13系
+  [26, 142.0],           // 14系
+  [26, 127.5],           // 15系
+  [26, 124.0],           // 16系
+  [26, 131.0],           // 17系
+  [20, 136.0],           // 18系
+  [26, 154.0]            // 19系
+];
+
+function tmMeridionalArc(a, e2, phi) {
+  const e4 = e2*e2, e6 = e4*e2;
+  return a * (
+    (1 - e2/4 - 3*e4/64 - 5*e6/256) * phi
+    - (3*e2/8 + 3*e4/32 + 45*e6/1024) * Math.sin(2*phi)
+    + (15*e4/256 + 45*e6/1024) * Math.sin(4*phi)
+    - 35*e6/3072 * Math.sin(6*phi)
+  );
+}
+
+function tmFootprintLat(a, e2, M) {
+  const e1 = (1 - Math.sqrt(1-e2)) / (1 + Math.sqrt(1-e2));
+  const e1_2 = e1*e1, e1_3 = e1_2*e1, e1_4 = e1_2*e1_2;
+  const mu = M / (a * (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
+  return mu
+    + (3*e1/2 - 27*e1_3/32) * Math.sin(2*mu)
+    + (21*e1_2/16 - 55*e1_4/32) * Math.sin(4*mu)
+    + 151*e1_3/96 * Math.sin(6*mu)
+    + 1097*e1_4/512 * Math.sin(8*mu);
+}
+
+function publicCoordToLatLon(x, y, zone) {
+  const org = ZONE_ORIGINS[zone];
+  if (!org) return null;
+  const phi0 = org[0] * Math.PI / 180;
+  const lam0 = org[1] * Math.PI / 180;
+  const a = 6378137.0, f = 1/298.257222101, m0 = 0.9999;
+  const e2 = 2*f - f*f, ep2 = e2/(1-e2);
+  const M0 = tmMeridionalArc(a, e2, phi0);
+  const phif = tmFootprintLat(a, e2, M0 + x/m0);
+  const sinf = Math.sin(phif), cosf = Math.cos(phif), tanf = sinf/cosf;
+  const Nf = a / Math.sqrt(1 - e2*sinf*sinf);
+  const Rf = a*(1-e2) / Math.pow(1 - e2*sinf*sinf, 1.5);
+  const eta2 = ep2 * cosf*cosf;
+  const D = y / (m0*Nf);
+  const D2 = D*D, D4 = D2*D2, D6 = D4*D2;
+  const phi = phif - tanf*(Nf/Rf) * (
+    D2/2
+    - D4/24 * (5 + 3*tanf*tanf + eta2 - 4*eta2*eta2 - 9*tanf*tanf*eta2)
+    + D6/720 * (61 + 90*tanf*tanf + 45*Math.pow(tanf,4))
+  );
+  const lam = lam0 + (
+    D/cosf
+    - D2*D/(6*cosf) * (1 + 2*tanf*tanf + eta2)
+    + D4*D/(120*cosf) * (5 + 28*tanf*tanf + 24*Math.pow(tanf,4) + 6*eta2 + 8*tanf*tanf*eta2)
+    - D6*D/(5040*cosf) * (61 + 662*tanf*tanf + 1320*Math.pow(tanf,4) + 720*Math.pow(tanf,6))
+  );
+  return [phi * 180/Math.PI, lam * 180/Math.PI];
+}
+
+function detectZoneFromDoc(doc) {
+  /* 系番号を示す要素を探す */
+  for (const el of doc.querySelectorAll('*')) {
+    if (el.localName === '系番号' || el.localName === 'zoneNumber') {
+      const n = parseInt(el.textContent.trim(), 10);
+      if (n >= 1 && n <= 19) return n;
+    }
+  }
+  /* SRID 文字列から推定 (例: EPSG:2447 = 9系) */
+  const epsgToZone = {
+    2443:1,2444:2,2445:3,2446:4,2447:5,2448:6,2449:7,2450:8,
+    2451:9,2452:10,2453:11,2454:12,2455:13,2456:14,2457:15,
+    2458:16,2459:17,2460:18,2461:19,
+    6669:1,6670:2,6671:3,6672:4,6673:5,6674:6,6675:7,6676:8,
+    6677:9,6678:10,6679:11,6680:12,6681:13,6682:14,6683:15,
+    6684:16,6685:17,6686:18,6687:19
+  };
+  const xmlText = doc.documentElement.textContent;
+  const m = xmlText.match(/EPSG[:\s]*(\d{4,5})/);
+  if (m) {
+    const z = epsgToZone[parseInt(m[1], 10)];
+    if (z) return z;
+  }
+  return null;
+}
+
 /* -------------------- coordinate workflow -------------------- */
 const coordUi = {
   dropZone: document.getElementById('coordDropZone'),
@@ -742,38 +946,38 @@ coordUi.convertBtn.addEventListener('click', async () => {
   try {
     const { xmlText, doc } = await readXmlDocFromFile(coordSelectedFile);
     if (xmlText.length > 10_000_000) {
-      coordUi.warnBox.textContent = 'Large XML. Processing may take time.';
+      coordUi.warnBox.textContent = '大きいファイルです。処理に時間がかかる場合があります。';
       coordUi.warnBox.style.display = 'block';
       await uiYield();
     }
 
-    setCoordProgress(16, 'Parsing points...');
+    setCoordProgress(16, '座標点を抽出中...');
     await uiYield();
     const points = parsePoints(doc);
 
-    setCoordProgress(32, `Parsing curves... ${points.size} points`);
+    setCoordProgress(32, `曲線を抽出中（${points.size}点）...`);
     await uiYield();
     const curves = parseCurves(doc, points);
 
-    setCoordProgress(52, `Parsing surfaces... ${curves.size} curves`);
+    setCoordProgress(52, `面データを抽出中（${curves.size}曲線）...`);
     await uiYield();
     const surfaces = parseSurfaces(doc);
 
-    setCoordProgress(68, 'Parsing boundaries and reference points...');
+    setCoordProgress(68, '筆界データ・基準点を抽出中...');
     await uiYield();
     const boundaryLines = parseBoundaryLines(doc);
     const boundaryPoints = parseBoundaryPoints(doc);
     const refPoints = parseRefPoints(doc);
 
-    setCoordProgress(78, 'Parsing parcel labels...');
+    setCoordProgress(78, '筆データを抽出中...');
     await uiYield();
     const parcels = parseParcels(doc);
 
-    setCoordProgress(86, 'Parsing frames...');
+    setCoordProgress(86, '図郭を抽出中...');
     await uiYield();
     const frames = parseFrames(doc);
 
-    setCoordProgress(92, 'Building DXF...');
+    setCoordProgress(92, 'DXFを生成中...');
     await uiYield();
     const dxf = generateCoordinateDxf({
       points, curves, surfaces, boundaryLines, boundaryPoints, refPoints, parcels, frames
@@ -784,11 +988,11 @@ coordUi.convertBtn.addEventListener('click', async () => {
 
     const validBoundary = boundaryLines.filter(line => line.curveId && curves.has(line.curveId)).length;
     coordUi.successBox.innerHTML =
-      `DXF created: <b>${escapeHtml(filename)}</b><br>` +
-      `Points ${points.size} / Curves ${curves.size} / Surfaces ${surfaces.size}<br>` +
-      `Boundaries ${boundaryLines.length} (valid ${validBoundary}) / Parcels ${parcels.length} / Boundary points ${boundaryPoints.length}`;
+      `変換完了: <b>${escapeHtml(filename)}</b><br>` +
+      `座標点 ${points.size} ／ 曲線 ${curves.size} ／ 面 ${surfaces.size}<br>` +
+      `筆界線 ${boundaryLines.length}（有効 ${validBoundary}）／ 筆 ${parcels.length} ／ 筆界点 ${boundaryPoints.length}`;
     coordUi.successBox.style.display = 'block';
-    setCoordProgress(100, 'Done');
+    setCoordProgress(100, '完了！');
   } catch (err) {
     showCoordError(err.message);
     console.error(err);
@@ -1044,7 +1248,7 @@ let lastPrecheck = null;
 function setRangeFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext !== 'xml' && ext !== 'zip') {
-    rangeUi.warnBox.textContent = 'Select an XML or ZIP file.';
+    rangeUi.warnBox.textContent = 'XMLまたはZIPファイルを選択してください。';
     rangeUi.warnBox.style.display = 'block';
     return;
   }
@@ -1067,17 +1271,34 @@ rangeUi.fileInput.addEventListener('change', async () => {
   try {
     rangeUi.warnBox.style.display = 'none';
     const { doc } = await readXmlDocFromFile(rangeSourceFile);
+
+    /* 系番号: UIの選択 → XML自動検出 → 不明 の優先順 */
+    let zone = parseInt(document.getElementById('coordZone').value, 10) || 0;
+    let zoneMsg = '';
+    if (!zone) {
+      const detected = detectZoneFromDoc(doc);
+      if (detected) {
+        zone = detected;
+        document.getElementById('coordZone').value = String(zone);
+        zoneMsg = `（系番号 ${zone} を自動検出）`;
+      }
+    }
+
     const frame = parseFrames(doc)[0];
-    if (!frame) throw new Error('Frame not found in XML.');
-    const bbox = extractLatLonBboxFromFrame(frame);
+    if (!frame) throw new Error('XMLから図郭が見つかりません。');
+    const bbox = extractLatLonBboxFromFrame(frame, zone);
     if (!bbox) {
-      throw new Error('Frame coordinates could not be interpreted as lon/lat. Enter the range manually.');
+      throw new Error(
+        zone
+          ? `${zone}系で変換しましたが経緯度に変換できませんでした。系番号を確認してください。`
+          : '図郭座標を経緯度として解釈できませんでした。「系番号」を選択してから再度お試しください。'
+      );
     }
     bboxWest.value = bbox.west.toFixed(6);
     bboxEast.value = bbox.east.toFixed(6);
     bboxSouth.value = bbox.south.toFixed(6);
     bboxNorth.value = bbox.north.toFixed(6);
-    rangeUi.warnBox.textContent = 'Loaded range from frame.';
+    rangeUi.warnBox.textContent = `図郭から範囲を読み込みました${zoneMsg}。`;
     rangeUi.warnBox.style.display = 'block';
   } catch (err) {
     rangeUi.warnBox.textContent = err.message;
@@ -1086,22 +1307,38 @@ rangeUi.fileInput.addEventListener('change', async () => {
 });
 rangeUi.removeBtn.addEventListener('click', clearRangeFile);
 
-function extractLatLonBboxFromFrame(frame) {
+function extractLatLonBboxFromFrame(frame, zone) {
   const names = [MAP_TAGS.northEast, MAP_TAGS.southEast, MAP_TAGS.southWest, MAP_TAGS.northWest];
   const pts = names.map(name => frame[name]).filter(Boolean);
-  if (pts.length !== 4) return null;
+  if (pts.length === 0) return null;
+
+  /* パターン1: 値がそのまま緯度経度かチェック */
   const xs = pts.map(p => p[0]);
   const ys = pts.map(p => p[1]);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const byXY = { west: minX, east: maxX, south: minY, north: maxY };
-  const byYX = { west: minY, east: maxY, south: minX, north: maxX };
-  const isLatLon = b =>
-    b.west >= -180 && b.east <= 180 && b.south >= -90 && b.north <= 90 && b.west < b.east && b.south < b.north;
-  if (isLatLon(byXY)) return byXY;
-  if (isLatLon(byYX)) return byYX;
+  const isLatLon = (lons, lats) =>
+    Math.min(...lons) >= -180 && Math.max(...lons) <= 180 &&
+    Math.min(...lats) >= -90  && Math.max(...lats) <= 90  &&
+    Math.min(...lons) < Math.max(...lons) &&
+    Math.min(...lats) < Math.max(...lats);
+  if (isLatLon(xs, ys)) {
+    return { west: Math.min(...xs), east: Math.max(...xs), south: Math.min(...ys), north: Math.max(...ys) };
+  }
+  if (isLatLon(ys, xs)) {
+    return { west: Math.min(...ys), east: Math.max(...ys), south: Math.min(...xs), north: Math.max(...xs) };
+  }
+
+  /* パターン2: 公共座標系 (x=北, y=東) → WGS84 変換 */
+  if (zone >= 1 && zone <= 19) {
+    const converted = pts.map(p => publicCoordToLatLon(p[0], p[1], zone));
+    if (converted.every(Boolean)) {
+      const lats = converted.map(p => p[0]);
+      const lons = converted.map(p => p[1]);
+      return {
+        west: Math.min(...lons), east: Math.max(...lons),
+        south: Math.min(...lats), north: Math.max(...lats)
+      };
+    }
+  }
   return null;
 }
 
@@ -1125,9 +1362,9 @@ function readBboxInputs() {
   const east = parseFloat(bboxEast.value);
   const south = parseFloat(bboxSouth.value);
   const north = parseFloat(bboxNorth.value);
-  if (![west, east, south, north].every(isFiniteCoord)) throw new Error('Enter west/east/south/north in lon/lat.');
-  if (!(west < east && south < north)) throw new Error('Range min/max ordering is invalid.');
-  if (west < -180 || east > 180 || south < -85 || north > 85) throw new Error('Range is outside Web Mercator limits.');
+  if (![west, east, south, north].every(isFiniteCoord)) throw new Error('西端・東端・南端・北端の経緯度を入力してください。');
+  if (!(west < east && south < north)) throw new Error('範囲の最小/最大の指定が不正です（西<東、南<北）。');
+  if (west < -180 || east > 180 || south < -85 || north > 85) throw new Error('範囲がWebメルカトルの限界を超えています（緯度 -85〜85、経度 -180〜180）。');
   return { west, east, south, north };
 }
 function renderPrecheckSummary(items) {
@@ -1145,11 +1382,11 @@ precheckBtn.addEventListener('click', () => {
     const sampleStepMeters = Math.max(1, parseFloat(sampleStepMetersEl.value) || 1);
     lastPrecheck = buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters);
     renderPrecheckSummary([
-      { label: 'Tile count', value: `${lastPrecheck.tileCount} tiles (${lastPrecheck.tileCols} x ${lastPrecheck.tileRows})` },
-      { label: 'Estimated resolution', value: `${fmtNum(lastPrecheck.resolutionMeters, 2)} m / pixel` },
-      { label: 'Range size', value: `${fmtNum(lastPrecheck.widthMeters, 1)} m x ${fmtNum(lastPrecheck.heightMeters, 1)} m` },
-      { label: 'Sampling grid', value: `${lastPrecheck.sampleWidth} x ${lastPrecheck.sampleHeight}` },
-      { label: 'Estimated download', value: `${fmtNum(lastPrecheck.tileCount * 0.10, 1)} MB` }
+      { label: 'タイル数', value: `${lastPrecheck.tileCount} 枚（${lastPrecheck.tileCols} × ${lastPrecheck.tileRows}）` },
+      { label: '推定解像度', value: `${fmtNum(lastPrecheck.resolutionMeters, 2)} m / pixel` },
+      { label: '変換範囲', value: `${fmtNum(lastPrecheck.widthMeters, 1)} m × ${fmtNum(lastPrecheck.heightMeters, 1)} m` },
+      { label: 'サンプリンググリッド', value: `${lastPrecheck.sampleWidth} × ${lastPrecheck.sampleHeight}` },
+      { label: '概算DL容量', value: `${fmtNum(lastPrecheck.tileCount * 0.10, 1)} MB` }
     ]);
   } catch (err) {
     showElevationError(err.message);
@@ -1164,7 +1401,7 @@ function buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters) {
   const tileCols = tileX1 - tileX0 + 1;
   const tileRows = tileY1 - tileY0 + 1;
   const tileCount = tileCols * tileRows;
-  if (tileCount > 64) throw new Error('Too many tiles. Reduce the range so it stays within 64 tiles.');
+  if (tileCount > 64) throw new Error(`タイル数が多すぎます（${tileCount}枚）。範囲を絞って64枚以内にしてください。`);
   const centerLat = (bbox.south + bbox.north) / 2;
   const resolutionMeters = groundResolution(centerLat, zoom);
   const widthMeters = lonDistanceMeters(bbox.west, bbox.east, centerLat);
@@ -1213,6 +1450,166 @@ function lonLatToLocalMm(lon, lat, centerLon, centerLat) {
   return [xMeters * 1000, yMeters * 1000];
 }
 
+/* ---- DEM ファイル解析 ---- */
+var demFileRaster = null;
+
+/* 基盤地図情報DEM GMLを解析してグリッドを返す */
+function parseDemGml(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (doc.querySelector('parsererror')) return null;
+  const coverage = doc.querySelector('coverage');
+  if (!coverage) return null;
+  const env = coverage.querySelector('Envelope');
+  if (!env) return null;
+  const lc = (env.querySelector('lowerCorner')?.textContent || '').trim().split(/\s+/).map(Number);
+  const uc = (env.querySelector('upperCorner')?.textContent || '').trim().split(/\s+/).map(Number);
+  if (lc.length < 2 || uc.some(isNaN) || lc.some(isNaN)) return null;
+  /* EPSG:6668: lowerCorner = "lat_south lon_west" */
+  const south = lc[0], west = lc[1], north = uc[0], east = uc[1];
+  const highEl = coverage.querySelector('GridEnvelope > high');
+  if (!highEl) return null;
+  const [xMax, yMax] = highEl.textContent.trim().split(/\s+/).map(Number);
+  const cols = xMax + 1, rows = yMax + 1;
+  const tupleEl = coverage.querySelector('doubleOrNilReasonTupleList') ||
+                  coverage.querySelector('tupleList');
+  if (!tupleEl) return null;
+  const tokens = tupleEl.textContent.trim().split(/\s+/);
+  /* axisOrder "+2 +1": y(lat)が先に変化、x(lon)が後 → カラム優先、y=0が南 */
+  const raster = new Float32Array(cols * rows).fill(NaN);
+  for (let i = 0; i < tokens.length && i < cols * rows; i++) {
+    const v = parseFloat(tokens[i]);
+    if (!isFinite(v) || v >= 9000 || v <= -9000) continue;
+    const col = Math.floor(i / rows);
+    const southRow = i % rows;
+    const northRow = rows - 1 - southRow;
+    raster[northRow * cols + col] = v;
+  }
+  return {
+    south, north, west, east, cols, rows, data: raster,
+    latStep: (north - south) / (rows - 1),
+    lonStep: (east - west) / (cols - 1)
+  };
+}
+
+/* ZIP内の全GMLを合成してラスターを返す */
+async function parseDemZipToRaster(file, bbox) {
+  if (typeof JSZip === 'undefined') throw new Error('JSZipが読み込まれていません');
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const entries = Object.values(zip.files).filter(f =>
+    !f.dir && f.name.toLowerCase().endsWith('.xml')
+  );
+  if (!entries.length) throw new Error('ZIP内にXMLファイルが見つかりません');
+  const grids = (await Promise.all(entries.map(async e => parseDemGml(await e.async('string'))))).filter(Boolean);
+  if (!grids.length) throw new Error('DEM GMLの解析に失敗しました');
+  const ext = {
+    south: Math.min(...grids.map(g => g.south)),
+    north: Math.max(...grids.map(g => g.north)),
+    west:  Math.min(...grids.map(g => g.west)),
+    east:  Math.max(...grids.map(g => g.east))
+  };
+  const b = bbox ? {
+    south: Math.max(bbox.south, ext.south), north: Math.min(bbox.north, ext.north),
+    west:  Math.max(bbox.west,  ext.west),  east:  Math.min(bbox.east,  ext.east)
+  } : ext;
+  if (b.south >= b.north || b.west >= b.east) throw new Error('指定範囲がDEMデータの範囲外です');
+  const latStep = Math.min(...grids.map(g => g.latStep));
+  const lonStep = Math.min(...grids.map(g => g.lonStep));
+  const cols = Math.round((b.east - b.west) / lonStep) + 1;
+  const rows = Math.round((b.north - b.south) / latStep) + 1;
+  const data = new Float32Array(cols * rows).fill(NaN);
+  for (const g of grids) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const lat = b.north - r * latStep;
+        const lon = b.west  + c * lonStep;
+        if (lat < g.south || lat > g.north || lon < g.west || lon > g.east) continue;
+        const sr = Math.round((g.north - lat) / g.latStep);
+        const sc = Math.round((lon - g.west)  / g.lonStep);
+        if (sr < 0 || sr >= g.rows || sc < 0 || sc >= g.cols) continue;
+        const v = g.data[sr * g.cols + sc];
+        if (isFinite(v)) data[r * cols + c] = v;
+      }
+    }
+  }
+  let minEl = Infinity, maxEl = -Infinity;
+  for (let i = 0; i < data.length; i++) {
+    if (isFinite(data[i])) { minEl = Math.min(minEl, data[i]); maxEl = Math.max(maxEl, data[i]); }
+  }
+  if (!isFinite(minEl)) throw new Error('有効な標高値が見つかりませんでした');
+  const cLon = (b.west + b.east) / 2, cLat = (b.south + b.north) / 2;
+  return {
+    bbox: b, width: cols, height: rows, data,
+    minElevation: minEl, maxElevation: maxEl,
+    centerLon: cLon, centerLat: cLat,
+    lonAtPixel: x => b.west  + x * lonStep,
+    latAtPixel: y => b.north - y * latStep
+  };
+}
+
+/* DEM ファイル UI */
+const demFileDrop   = document.getElementById('demFileDrop');
+const demFileInput  = document.getElementById('demFileInput');
+const demFileBadge  = document.getElementById('demFileBadge');
+const demFileName   = document.getElementById('demFileName');
+const demFileSize   = document.getElementById('demFileSize');
+const demFileRemove = document.getElementById('demFileRemove');
+const demFileInfo   = document.getElementById('demFileInfo');
+const demFileArea   = document.getElementById('demFileArea');
+const tileApiSec    = document.getElementById('tileApiSection');
+
+async function setDemFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'zip' && ext !== 'xml') {
+    demFileInfo.textContent = 'ZIPまたはXMLファイルを選択してください'; demFileInfo.style.display = 'block'; return;
+  }
+  demFileName.textContent = file.name;
+  demFileSize.textContent = fmtSize(file.size);
+  demFileBadge.style.display = 'flex';
+  demFileInfo.textContent = 'ファイルを読み込み中...'; demFileInfo.style.display = 'block';
+  demFileRaster = null;
+  try {
+    /* extentだけ先取りしてbbox入力欄に自動入力 */
+    const zip = typeof JSZip !== 'undefined' ? await JSZip.loadAsync(await file.arrayBuffer()) : null;
+    let xmlText;
+    if (zip) {
+      const entry = Object.values(zip.files).find(f => !f.dir && f.name.toLowerCase().endsWith('.xml'));
+      if (!entry) throw new Error('ZIP内にXMLが見つかりません');
+      xmlText = await entry.async('string');
+    } else {
+      xmlText = await readXmlTextFromFile(file);
+    }
+    const grid = parseDemGml(xmlText);
+    if (!grid) throw new Error('DEM GMLの解析に失敗しました');
+    /* 全ZIPの範囲を後で正確に取得するため、まず1ファイル分の範囲を入力 */
+    bboxWest.value  = grid.west.toFixed(6);
+    bboxEast.value  = grid.east.toFixed(6);
+    bboxSouth.value = grid.south.toFixed(6);
+    bboxNorth.value = grid.north.toFixed(6);
+    demFileInfo.textContent = `検出範囲: 緯度 ${grid.south.toFixed(4)}〜${grid.north.toFixed(4)}, 経度 ${grid.west.toFixed(4)}〜${grid.east.toFixed(4)} / グリッド ${grid.cols}×${grid.rows}`;
+    demFileInfo.style.display = 'block';
+    /* ファイルオブジェクトを保持 */
+    demFileRaster = { _file: file, _grid: null };
+  } catch (e) {
+    demFileInfo.textContent = 'エラー: ' + e.message; demFileInfo.style.display = 'block';
+    demFileRaster = null;
+  }
+}
+
+demFileDrop.addEventListener('click', () => demFileInput.click());
+demFileDrop.addEventListener('dragover', e => { e.preventDefault(); demFileDrop.classList.add('drag-over'); });
+demFileDrop.addEventListener('dragleave', () => demFileDrop.classList.remove('drag-over'));
+demFileDrop.addEventListener('drop', e => { e.preventDefault(); demFileDrop.classList.remove('drag-over'); if (e.dataTransfer.files[0]) setDemFile(e.dataTransfer.files[0]); });
+demFileInput.addEventListener('change', () => { if (demFileInput.files[0]) setDemFile(demFileInput.files[0]); });
+demFileRemove.addEventListener('click', () => {
+  demFileRaster = null; demFileBadge.style.display = 'none'; demFileInput.value = ''; demFileInfo.style.display = 'none';
+});
+
+document.querySelectorAll('input[name="elevSrc"]').forEach(r => r.addEventListener('change', () => {
+  const useFile = document.getElementById('elevSrcFile').checked;
+  demFileArea.style.display = useFile ? 'block' : 'none';
+  tileApiSec.style.display  = useFile ? 'none'  : 'block';
+}));
+
 elevConvertBtn.addEventListener('click', async () => {
   hideElevationMessages();
   try {
@@ -1226,24 +1623,36 @@ elevConvertBtn.addEventListener('click', async () => {
     lastPrecheck = buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters);
 
     elevConvertBtn.disabled = true;
-    setElevationProgress(5, 'Calculating tile range...');
+    setElevationProgress(5, 'タイル範囲を計算中...');
     await uiYield();
 
-    const raster = await fetchDemRaster(lastPrecheck, setElevationProgress);
+    const useFile = document.getElementById('elevSrcFile').checked;
+    let raster;
+    if (useFile) {
+      if (!demFileRaster || !demFileRaster._file) throw new Error('DEMファイルを選択してください');
+      setElevationProgress(20, 'DEMファイルを解析中...');
+      await uiYield();
+      const bbox = (() => { try { return readBboxInputs(); } catch { return null; } })();
+      raster = await parseDemZipToRaster(demFileRaster._file, bbox);
+      setElevationProgress(60, 'DEMファイル読み込み完了');
+      await uiYield();
+    } else {
+      raster = await fetchDemRaster(lastPrecheck, setElevationProgress);
+    }
     const levels = buildContourLevels(raster.minElevation, raster.maxElevation, contourInterval);
 
-    setElevationProgress(70, 'Generating contours...');
+    setElevationProgress(70, '等高線を生成中...');
     await uiYield();
     const contourSegments = generateContours(raster, levels);
 
     let elevPoints = [];
     if (pointSpacing > 0) {
-      setElevationProgress(82, 'Sampling elevation points...');
+      setElevationProgress(82, '標高点をサンプリング中...');
       await uiYield();
       elevPoints = sampleElevationPoints(raster, pointSpacing);
     }
 
-    setElevationProgress(92, 'Building DXF...');
+    setElevationProgress(92, 'DXFを生成中...');
     await uiYield();
     const dxf = generateElevationDxf({
       raster,
@@ -1258,11 +1667,11 @@ elevConvertBtn.addEventListener('click', async () => {
     const filename = `elevation_${demType}_z${zoom}.dxf`;
     downloadTextFile(filename, dxf);
     elevSuccessBox.innerHTML =
-      `Elevation DXF created: <b>${escapeHtml(filename)}</b><br>` +
-      `Range ${fmtNum(lastPrecheck.widthMeters, 1)}m x ${fmtNum(lastPrecheck.heightMeters, 1)}m / Tiles ${lastPrecheck.tileCount}<br>` +
-      `Contour levels ${levels.length} / Elevation points ${elevPoints.length}`;
+      `標高DXFを出力しました: <b>${escapeHtml(filename)}</b><br>` +
+      `変換範囲 ${fmtNum(lastPrecheck.widthMeters, 1)}m × ${fmtNum(lastPrecheck.heightMeters, 1)}m ／ タイル ${lastPrecheck.tileCount}枚<br>` +
+      `等高線レベル ${levels.length}本 ／ 標高点 ${elevPoints.length}点`;
     elevSuccessBox.style.display = 'block';
-    setElevationProgress(100, 'Done');
+    setElevationProgress(100, '完了！');
   } catch (err) {
     showElevationError(err.message);
     console.error(err);
@@ -1306,19 +1715,19 @@ async function fetchDemRaster(precheck, progressCallback) {
       const task = tasks[cursor++];
       const url = `https://cyberjapandata.gsi.go.jp/xyz/${demType}/${zoom}/${task.tx}/${task.ty}.png`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`DEM tile fetch failed: ${response.status} ${url}`);
+      if (!response.ok) throw new Error(`標高タイルの取得に失敗しました（${response.status}）: ${url}`);
       const blob = await response.blob();
       const bitmap = await createImageBitmap(blob);
       stitchedCtx.drawImage(bitmap, (task.tx - tileX0) * TILE_SIZE, (task.ty - tileY0) * TILE_SIZE);
       bitmap.close();
       loaded++;
-      progressCallback(10 + Math.round(45 * (loaded / tileCount)), `Downloading DEM tiles... ${loaded}/${tileCount}`);
+      progressCallback(10 + Math.round(45 * (loaded / tileCount)), `標高タイルをDL中... ${loaded}/${tileCount}枚`);
       await uiYield();
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
 
-  progressCallback(58, 'Decoding elevations...');
+  progressCallback(58, '標高値を解読中...');
   await uiYield();
 
   const image = stitchedCtx.getImageData(cropLeft, cropTop, width, height);
@@ -1334,7 +1743,7 @@ async function fetchDemRaster(precheck, progressCallback) {
     }
   }
   if (!Number.isFinite(minElevation) || !Number.isFinite(maxElevation)) {
-    throw new Error('No valid elevation values were found.');
+    throw new Error('有効な標高値が見つかりませんでした。範囲またはタイル種別を確認してください。');
   }
   return {
     bbox,
@@ -1577,6 +1986,165 @@ function buildDxf({ layers, extents, entities }) {
   push('  0','ENDSEC','  0','EOF');
   return out.join('\n');
 }
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* -------------------- DEM 検索タブ -------------------- */
+var _demMap = null, _meshLayer = null;
+var _selMeshes = new Set();
+
+/* 2次メッシュコード計算（JIS X 0410） */
+function _meshCode(lat, lon) {
+  var r = Math.floor(lat * 1.5);
+  var c = Math.floor(lon) - 100;
+  var ri = Math.min(7, Math.floor((lat - r * 2/3) * 12));
+  var ci = Math.min(7, Math.floor((lon - (c + 100)) * 8));
+  return String(r).padStart(2,'0') + String(c).padStart(2,'0') + String(ri*8+ci).padStart(2,'0');
+}
+
+/* 2次メッシュの南西・北東座標 */
+function _meshBbox(code) {
+  var r = +code.slice(0,2), c = +code.slice(2,4), s = +code.slice(4,6);
+  return {
+    south: r*2/3 + Math.floor(s/8)/12,
+    west:  c+100 + (s%8)/8,
+    north: r*2/3 + (Math.floor(s/8)+1)/12,
+    east:  c+100 + ((s%8)+1)/8
+  };
+}
+
+function _renderGrid() {
+  if (!_demMap) return;
+  _meshLayer.clearLayers();
+  var z = _demMap.getZoom();
+  var b = _demMap.getBounds();
+  var stepLat = z < 9 ? 2/3  : 1/12;
+  var stepLon = z < 9 ? 1.0  : 1/8;
+  var s0 = Math.floor(b.getSouth() / stepLat) * stepLat;
+  var w0 = Math.floor(b.getWest()  / stepLon) * stepLon;
+  var rows = Math.ceil((b.getNorth() - s0) / stepLat);
+  var cols = Math.ceil((b.getEast()  - w0) / stepLon);
+  if (rows * cols > 400) return;
+  for (var i = 0; i < rows; i++) {
+    for (var j = 0; j < cols; j++) {
+      var lat = s0 + i * stepLat;
+      var lon = w0 + j * stepLon;
+      var code = z < 9
+        ? String(Math.floor((lat+stepLat/2)*1.5)).padStart(2,'0') + String(Math.floor(lon+stepLon/2)-100).padStart(2,'0')
+        : _meshCode(lat + stepLat/2, lon + stepLon/2);
+      var sel = _selMeshes.has(code);
+      (function(code2, sel2) {
+        L.rectangle([[lat, lon],[lat+stepLat, lon+stepLon]], {
+          color: sel2 ? '#63b3ed' : '#475569', weight: sel2 ? 2 : 1,
+          fillColor: sel2 ? '#3182ce' : '#1e3a5f', fillOpacity: sel2 ? 0.4 : 0.06
+        }).bindTooltip(code2, {sticky:true, className:'leaflet-tooltip-mesh'})
+          .on('click', function() { if (z >= 9) _toggleMesh(code2); })
+          .addTo(_meshLayer);
+      })(code, sel);
+    }
+  }
+}
+
+function _toggleMesh(code) {
+  _selMeshes.has(code) ? _selMeshes.delete(code) : _selMeshes.add(code);
+  _renderGrid();
+  _updateMeshUI();
+}
+
+function _updateMeshUI() {
+  var el = document.getElementById('demMeshList');
+  var row = document.getElementById('demDlRow');
+  var type = document.getElementById('demSearchType').value;
+  if (_selMeshes.size === 0) {
+    el.innerHTML = '<p class="hint">地図上のセルをクリックして選択</p>';
+    row.style.display = 'none';
+    return;
+  }
+  el.innerHTML = Array.from(_selMeshes).map(function(c) {
+    return '<div class="summary-item" style="display:flex;align-items:center;gap:6px">' +
+      '<strong style="flex:none">' + c + '</strong>' +
+      '<span class="mini" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">FG-GML-' + c + '-' + type + '-*.zip</span>' +
+      '<button onclick="_toggleMesh(\'' + c + '\')" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:.9rem;flex:none">×</button></div>';
+  }).join('');
+  row.style.display = 'flex';
+}
+
+function _initDemMap() {
+  if (_demMap) { setTimeout(function(){ _demMap.invalidateSize(); }, 50); return; }
+  _demMap = L.map('demMapEl').setView([35.7, 137.5], 9);
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+    maxZoom: 18
+  }).addTo(_demMap);
+  _meshLayer = L.layerGroup().addTo(_demMap);
+  _demMap.on('moveend zoomend', _renderGrid);
+  _renderGrid();
+}
+
+async function _searchAddress() {
+  var q = document.getElementById('demAddressInput').value.trim();
+  var warn = document.getElementById('demAddrWarn');
+  warn.style.display = 'none';
+  if (!q) return;
+  try {
+    var res = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+    var data = await res.json();
+    if (!data || !data.length) throw new Error('住所が見つかりませんでした');
+    var coords = data[0].geometry.coordinates; // [lon, lat]
+    _initDemMap();
+    _demMap.setView([coords[1], coords[0]], 12);
+  } catch(e) {
+    warn.textContent = e.message;
+    warn.style.display = 'block';
+  }
+}
+
+document.getElementById('demAddrSearchBtn').addEventListener('click', _searchAddress);
+document.getElementById('demAddressInput').addEventListener('keydown', function(e){ if(e.key==='Enter') _searchAddress(); });
+document.getElementById('demSearchType').addEventListener('change', _updateMeshUI);
+
+document.getElementById('demClearBtn').addEventListener('click', function() {
+  _selMeshes.clear(); _renderGrid(); _updateMeshUI();
+});
+
+document.getElementById('demDlBtn').addEventListener('click', function() {
+  var codes = Array.from(_selMeshes);
+  var type = document.getElementById('demSearchType').value;
+
+  /* 選択メッシュの中心座標を計算してURLに埋め込む */
+  var bboxes = codes.map(_meshBbox);
+  var centerLat = bboxes.reduce(function(s,b){ return s+(b.south+b.north)/2; }, 0) / bboxes.length;
+  var centerLon = bboxes.reduce(function(s,b){ return s+(b.west+b.east)/2;  }, 0) / bboxes.length;
+
+  /* ?search=dem で「数値標高モデルを探す」タブを指定、#ズーム/緯度/経度で位置指定 */
+  var url = 'https://service.gsi.go.jp/kiban/app/map/?search=dem'
+    + '#12/' + centerLat.toFixed(5) + '/' + centerLon.toFixed(5);
+  window.open(url, '_blank');
+
+  /* メッシュコードをクリップボードにコピー */
+  var codeStr = codes.join('\n');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(codeStr).catch(function(){});
+  }
+
+  alert(
+    '【基盤地図情報ダウンロードサービス】\n' +
+    '数値標高モデルを探すタブで選択エリアを開きました。\n\n' +
+    '手順:\n' +
+    '1. サービスにログイン\n' +
+    '2. 数値標高モデルを探すタブを確認\n' +
+    '3. 種別「' + type + '」で地図上のメッシュを選択\n' +
+    '4. ZIPをダウンロード\n\n' +
+    '対象メッシュコード（クリップボードにコピー済）:\n' + codeStr
+  );
+});
+
+/* タブ切り替え時に地図を初期化 */
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (btn.dataset.tab === 'demSearchPanel') setTimeout(_initDemMap, 120);
+  });
+});
 </script>
 </body>
 </html>
