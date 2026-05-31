@@ -388,10 +388,10 @@ input[type="file"] { display: none; }
           <div class="section">
             <h2>データソース</h2>
             <div style="display:flex;gap:24px;margin-bottom:10px">
-              <label class="check"><input type="radio" name="elevSrc" value="tile" id="elevSrcTile" checked> 地理院タイルAPI</label>
-              <label class="check"><input type="radio" name="elevSrc" value="file" id="elevSrcFile"> 基盤地図情報DEMファイル</label>
+              <label class="check"><input type="radio" name="elevSrc" value="tile" id="elevSrcTile"> 地理院タイルAPI</label>
+              <label class="check"><input type="radio" name="elevSrc" value="file" id="elevSrcFile" checked> 基盤地図情報DEMファイル</label>
             </div>
-            <div id="demFileArea" style="display:none">
+            <div id="demFileArea" style="display:block">
               <p class="hint" style="margin-bottom:8px">FG-GML-XXXXXX-DEM1A-XXXXXXXX.zip をドロップ</p>
               <div class="drop-zone" id="demFileDrop" style="padding:20px 16px">
                 <span class="icon">📦</span>
@@ -490,7 +490,7 @@ input[type="file"] { display: none; }
             <div class="message warn" id="rangeWarnBox"></div>
           </div>
 
-          <div class="section" id="tileApiSection">
+          <div class="section" id="tileApiSection" style="display:none">
             <h2>Step 2. DL前確認</h2>
             <div class="field-grid three">
               <div class="field">
