@@ -1314,7 +1314,7 @@ coordUi.convertBtn.addEventListener('click', async () => {
 
     const validBoundary = boundaryLines.filter(line => line.curveId && curves.has(line.curveId)).length;
     coordUi.successBox.innerHTML =
-      `変換完了: <b>${escapeHtml(filename)}</b><br>` +
+      `変換完了: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([dxf]).size)}）<br>` +
       `座標点 ${points.size} ／ 曲線 ${curves.size} ／ 面 ${surfaces.size}<br>` +
       `筆界線 ${boundaryLines.length}（有効 ${validBoundary}）／ 筆 ${parcels.length} ／ 筆界点 ${boundaryPoints.length}`;
     coordUi.successBox.style.display = 'block';
@@ -2172,7 +2172,7 @@ elevConvertBtn.addEventListener('click', async () => {
     const filename = `elevation_${demType}_z${zoom}.dxf`;
     downloadTextFile(filename, dxf);
     elevSuccessBox.innerHTML =
-      `標高DXFを出力しました: <b>${escapeHtml(filename)}</b><br>` +
+      `標高DXFを出力しました: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([dxf]).size)}）<br>` +
       `座標系: 公共座標 <b>${raster.zone}系</b>（X=北向き mm, Y=東向き mm）<br>` +
       `変換範囲 ${fmtNum(lastPrecheck.widthMeters, 1)}m × ${fmtNum(lastPrecheck.heightMeters, 1)}m<br>` +
       `等高線レベル ${levels.length}本 ／ 標高点 ${elevPoints.length}点`;
