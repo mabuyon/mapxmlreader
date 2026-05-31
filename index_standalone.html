@@ -2156,6 +2156,9 @@ function contourIntersections(v0, v1, v2, v3, level) {
 function generateContours(raster, levels) {
   const segments = [];
   const { width, height, data, lonAtPixel, latAtPixel, centerLon, centerLat } = raster;
+  /* 1セルあたりの最大等高線通過数（これを超える急斜面セルはスキップ） */
+  const ci = levels.length > 1 ? Math.abs(levels[1] - levels[0]) : 1;
+  const MAX_CELL_RANGE = ci * 10;
   for (const level of levels) {
     for (let y = 0; y < height - 1; y++) {
       for (let x = 0; x < width - 1; x++) {
@@ -2163,6 +2166,10 @@ function generateContours(raster, levels) {
         const v1 = sampleRaster(data, width, x + 1, y);
         const v2 = sampleRaster(data, width, x + 1, y + 1);
         const v3 = sampleRaster(data, width, x, y + 1);
+        /* 崖判定：1ピクセルで等高線間隔×10以上の高度差があるセルは描画不能なため省略 */
+        if (Number.isFinite(v0) && Number.isFinite(v1) && Number.isFinite(v2) && Number.isFinite(v3)) {
+          if (Math.max(v0, v1, v2, v3) - Math.min(v0, v1, v2, v3) > MAX_CELL_RANGE) continue;
+        }
         const intersections = contourIntersections(v0, v1, v2, v3, level);
         if (intersections.length < 2) continue;
         if (intersections.length === 2) {
@@ -2240,7 +2247,13 @@ function generateElevationDxf(opts) {
     ],
     extents,
     entities: writer => {
+      /* ラベルは等高線1本につき50m以上離れた箇所にのみ配置（重複排除） */
+      const lastLabelPos = new Map();
+      const MIN_LABEL_SQ = 50000 * 50000; /* 50m (mm単位で二乗) */
       for (const seg of contourSegments) {
+        /* 縮退セグメント（ほぼゼロ長）を除去 */
+        const dx = seg.b[0] - seg.a[0], dy = seg.b[1] - seg.a[1];
+        if (dx * dx + dy * dy < 100) continue; /* < 10mm → スキップ */
         const layer = Math.abs(seg.level / majorEvery - Math.round(seg.level / majorEvery)) < 1e-9
           ? 'CONTOUR_MAJOR'
           : 'CONTOUR_MINOR';
@@ -2248,7 +2261,11 @@ function generateElevationDxf(opts) {
         if (includeContourLabels && layer === 'CONTOUR_MAJOR') {
           const cx = (seg.a[0] + seg.b[0]) / 2;
           const cy = (seg.a[1] + seg.b[1]) / 2;
-          writer.text(layer, cx, cy, textHeight * 0.8, String(seg.level), 1, 2);
+          const last = lastLabelPos.get(seg.level);
+          if (!last || (cx - last[0]) ** 2 + (cy - last[1]) ** 2 >= MIN_LABEL_SQ) {
+            writer.text(layer, cx, cy, textHeight * 0.8, String(seg.level), 1, 2);
+            lastLabelPos.set(seg.level, [cx, cy]);
+          }
         }
       }
 
