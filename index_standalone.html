@@ -407,12 +407,28 @@ input[type="file"] { display: none; }
                 <button class="rm" id="demFileRemove" type="button">×</button>
               </div>
               <div class="message warn" id="demFileInfo"></div>
+              <div class="section" id="demFileRangeSection" style="display:none;margin-top:14px;padding:14px">
+                <h2 style="font-size:.98rem;margin-bottom:8px">DEMファイル内の変換範囲</h2>
+                <p class="hint" style="margin-bottom:10px">地図を移動・拡大して、表示中の範囲を等高線変換対象にできます。選択はDEMファイルの範囲内に自動で制限されます。</p>
+                <div id="demFileMapEl" style="height:280px;border-radius:12px;border:1px solid var(--line);background:#0d1420"></div>
+                <div class="btn-row" style="margin-top:10px">
+                  <button class="btn secondary" id="demUseViewBtn" type="button">現在の表示範囲を使う</button>
+                  <button class="btn secondary" id="demResetExtentBtn" type="button">DEM全範囲に戻す</button>
+                </div>
+                <div class="message warn" id="demRangeInfo" style="display:block;margin-top:10px"></div>
+              </div>
             </div>
           </div>
 
           <div class="section">
             <h2>Step 1. 変換範囲の決定</h2>
-            <p class="hint">範囲は手入力、または地図XMLから自動読込できます。XMLからの自動読込は、図郭座標が経度・緯度で読める場合に限ります。</p>
+            <p class="hint">範囲は手入力、住所検索、または地図XMLから自動読込できます。</p>
+
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <input id="elevAddrInput" type="text" placeholder="住所・地名から範囲を設定（例: 松本市）"
+                style="flex:1;min-height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.9rem">
+              <button id="elevAddrBtn" class="btn secondary" type="button" style="min-width:64px;padding:0 12px">検索</button>
+            </div>
 
             <div class="field-grid">
               <div class="field">
@@ -613,9 +629,12 @@ DEM10B (dem_png): Z 1-14</div>
             <h2>選択メッシュ</h2>
             <div id="demMeshList"><p class="hint">地図上のセルをクリックして選択</p></div>
             <div id="demDlRow" class="btn-row" style="display:none;flex-direction:column;gap:8px;margin-top:10px">
-              <button class="btn" id="demDlBtn" type="button">基盤地図情報サービスを開く</button>
+              <button class="btn" id="demToElevBtn" type="button">このエリアを標高タブで変換（タイルAPI）</button>
+              <button class="btn secondary" id="demAutoDownloadBtn" type="button">ZIP自動DL試行（要ログイン済み）</button>
+              <button class="btn secondary" id="demDlBtn" type="button">基盤地図情報サービスを開く</button>
               <button class="btn secondary" id="demClearBtn" type="button">選択をクリア</button>
             </div>
+            <div class="message warn" id="demAutoDownloadWarn"></div>
           </div>
           <div class="section">
             <h2>ダウンロード手順</h2>
@@ -633,6 +652,270 @@ DEM10B (dem_png): Z 1-14</div>
   </div>
 </div>
 
+<script>
+/* ==================== ErrorLogger ==================== */
+(function () {
+  'use strict';
+  var DB_NAME = 'mapxmlreader_errlog';
+  var STORE = 'entries';
+  var db = null;
+  var buffer = [];
+  var fileHandle = null;
+  var errorCount = 0;
+  var warnCount = 0;
+
+  function ts() { return new Date().toISOString(); }
+
+  function fmtLine(level, msg, stack) {
+    var s = '[' + ts() + '] [' + level + '] ' + String(msg);
+    if (stack && typeof stack === 'string') {
+      s += '\n' + stack.split('\n').slice(0, 10).map(function (l) { return '    ' + l.trim(); }).join('\n');
+    }
+    return s;
+  }
+
+  /* --- IndexedDB --- */
+  function initDB() {
+    try {
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function (e) {
+        var d = e.target.result;
+        if (!d.objectStoreNames.contains(STORE)) {
+          d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = function (e) {
+        db = e.target.result;
+        if (buffer.length) {
+          var tx = db.transaction(STORE, 'readwrite');
+          var st = tx.objectStore(STORE);
+          for (var i = 0; i < buffer.length; i++) st.add(buffer[i]);
+          buffer = [];
+        }
+      };
+    } catch (e) { /* IndexedDB unavailable */ }
+  }
+
+  function dbAdd(entry) {
+    if (!db) { buffer.push(entry); return; }
+    try {
+      db.transaction(STORE, 'readwrite').objectStore(STORE).add(entry);
+    } catch (e) { buffer.push(entry); }
+  }
+
+  /* --- ファイル自動保存 (File System Access API) --- */
+  async function appendToFile(line) {
+    if (!fileHandle) return;
+    try {
+      var file = await fileHandle.getFile();
+      var existing = await file.text();
+      var writable = await fileHandle.createWritable();
+      await writable.write(existing + line + '\n');
+      await writable.close();
+    } catch (e) {
+      /* Write failed – don't recurse into log */
+    }
+  }
+
+  /* --- 記録コア --- */
+  function record(level, msg, stack) {
+    var entry = { ts: ts(), level: level, msg: String(msg), stack: stack || '' };
+    var line = fmtLine(level, msg, stack);
+    entry.line = line;
+    if (level === 'ERROR') errorCount++;
+    else if (level === 'WARN') warnCount++;
+    dbAdd(entry);
+    appendToFile(line);
+    _updateBadge();
+  }
+
+  /* --- グローバルエラーフック --- */
+  var _origConsoleError = console.error.bind(console);
+  console.error = function () {
+    _origConsoleError.apply(console, arguments);
+    var parts = Array.prototype.slice.call(arguments);
+    var err = parts.find(function (a) { return a instanceof Error; });
+    var msg = parts.map(function (a) { return (a instanceof Error) ? a.message : String(a); }).join(' ');
+    record('ERROR', msg, err && err.stack);
+  };
+
+  var _origConsoleWarn = console.warn.bind(console);
+  console.warn = function () {
+    _origConsoleWarn.apply(console, arguments);
+    var msg = Array.prototype.slice.call(arguments).map(String).join(' ');
+    record('WARN', msg);
+  };
+
+  window.addEventListener('error', function (e) {
+    var loc = e.filename ? ' @ ' + e.filename + ':' + e.lineno + ':' + e.colno : '';
+    record('UNCAUGHT', (e.message || '') + loc, e.error && e.error.stack);
+  });
+
+  window.addEventListener('unhandledrejection', function (e) {
+    var msg = e.reason instanceof Error ? e.reason.message : String(e.reason);
+    record('UNHANDLED_PROMISE', msg, e.reason instanceof Error ? e.reason.stack : '');
+  });
+
+  /* --- ログ全件取得 --- */
+  function getAllLines(cb) {
+    var fallback = buffer.map(function (e) { return e.line; }).join('\n');
+    if (!db) { cb(fallback); return; }
+    try {
+      var req = db.transaction(STORE, 'readonly').objectStore(STORE).getAll();
+      req.onsuccess = function () {
+        var lines = (req.result || []).map(function (e) { return e.line || fmtLine(e.level, e.msg, e.stack); });
+        var extra = buffer.map(function (e) { return e.line; });
+        cb(lines.concat(extra).join('\n'));
+      };
+      req.onerror = function () { cb(fallback); };
+    } catch (e) { cb(fallback); }
+  }
+
+  /* --- ログクリア --- */
+  function clearAll(cb) {
+    buffer = [];
+    errorCount = 0;
+    warnCount = 0;
+    _updateBadge();
+    if (!db) { if (cb) cb(); return; }
+    try {
+      var tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = function () { if (cb) cb(); };
+    } catch (e) { if (cb) cb(); }
+  }
+
+  /* --- ファイル選択 --- */
+  async function pickFile() {
+    if (!window.showSaveFilePicker) {
+      alert('このブラウザはファイル直接保存に対応していません。\nChrome / Edge をお使いください。\n\n「ダウンロード」ボタンで手動保存できます。');
+      return;
+    }
+    try {
+      fileHandle = await window.showSaveFilePicker({
+        suggestedName: 'error_log.txt',
+        types: [{ description: 'テキストファイル', accept: { 'text/plain': ['.txt'] } }]
+      });
+      var writable = await fileHandle.createWritable();
+      await writable.write('# mapxmlreader エラーログ\n# 開始: ' + ts() + '\n\n');
+      await writable.close();
+      var statusEl = document.getElementById('_el_file_status');
+      if (statusEl) statusEl.textContent = fileHandle.name;
+      /* 既存ログをフラッシュ */
+      getAllLines(function (text) {
+        if (text.trim()) appendToFile(text);
+      });
+      record('INFO', 'ログファイルを設定しました: ' + fileHandle.name);
+    } catch (e) {
+      if (e.name !== 'AbortError') alert('ファイル設定エラー: ' + e.message);
+    }
+  }
+
+  /* --- ダウンロード --- */
+  function downloadLog() {
+    getAllLines(function (text) {
+      var header = '# mapxmlreader エラーログ\n# 出力: ' + ts() + '\n\n';
+      var blob = new Blob([header + (text || '(ログなし)')], { type: 'text/plain;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'error_log_' + ts().replace(/[:.]/g, '-').slice(0, 19) + '.txt';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  /* --- UI --- */
+  function _updateBadge() {
+    var badge = document.getElementById('_el_badge');
+    if (!badge) return;
+    var total = errorCount + warnCount;
+    badge.textContent = total > 99 ? '99+' : total;
+    badge.style.display = total > 0 ? 'flex' : 'none';
+    badge.style.background = errorCount > 0 ? '#fc8181' : '#f6ad55';
+  }
+
+  function _togglePanel() {
+    var p = document.getElementById('_el_panel');
+    if (!p) return;
+    var open = p.style.display !== 'none';
+    if (!open) {
+      getAllLines(function (text) {
+        var el = document.getElementById('_el_content');
+        if (el) el.textContent = text || '(ログなし)';
+      });
+    }
+    p.style.display = open ? 'none' : 'flex';
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initDB();
+
+    /* スタイル */
+    var style = document.createElement('style');
+    style.textContent = [
+      '#_el_btn{position:fixed;bottom:20px;right:20px;z-index:9000;background:#1a202c;border:1px solid #4a5568;',
+      'color:#94a3b8;border-radius:12px;padding:8px 14px;cursor:pointer;font-size:.82rem;',
+      'display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);}',
+      '#_el_btn:hover{background:#2d3748;}',
+      '#_el_badge{border-radius:999px;width:20px;height:20px;font-size:.7rem;align-items:center;',
+      'justify-content:center;display:none;font-weight:700;color:#fff;flex-shrink:0;}',
+      '#_el_panel{position:fixed;bottom:64px;right:20px;z-index:8999;width:600px;max-width:96vw;',
+      'background:#1a202c;border:1px solid #4a5568;border-radius:16px;',
+      'box-shadow:0 8px 40px rgba(0,0,0,.7);display:none;flex-direction:column;max-height:70vh;}',
+      '#_el_hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#2d3748;',
+      'border-radius:16px 16px 0 0;border-bottom:1px solid #4a5568;flex-shrink:0;}',
+      '#_el_hdr span{flex:1;color:#e2e8f0;font-size:.92rem;font-weight:700;}',
+      '#_el_hdr button{appearance:none;border:1px solid #4a5568;background:transparent;',
+      'color:#94a3b8;cursor:pointer;font-size:.78rem;padding:3px 9px;border-radius:7px;}',
+      '#_el_hdr button:hover{background:#4a5568;color:#e2e8f0;}',
+      '#_el_file_row{padding:6px 14px;border-bottom:1px solid #2d3748;display:flex;',
+      'align-items:center;gap:8px;font-size:.78rem;color:#64748b;flex-shrink:0;}',
+      '#_el_file_status{flex:1;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '#_el_content{flex:1;overflow-y:auto;padding:10px 14px;font-family:Consolas,monospace;',
+      'font-size:.76rem;color:#94a3b8;white-space:pre-wrap;word-break:break-all;line-height:1.55;}'
+    ].join('');
+    document.head.appendChild(style);
+
+    /* ボタン */
+    var btn = document.createElement('div');
+    btn.id = '_el_btn';
+    btn.innerHTML = 'エラーログ <span id="_el_badge"></span>';
+    btn.addEventListener('click', _togglePanel);
+    document.body.appendChild(btn);
+
+    /* パネル */
+    var panel = document.createElement('div');
+    panel.id = '_el_panel';
+    panel.innerHTML = [
+      '<div id="_el_hdr">',
+      '<span>エラーログ</span>',
+      '<button id="_el_pick_btn">自動保存先を設定</button>',
+      '<button id="_el_dl_btn">ダウンロード</button>',
+      '<button id="_el_clear_btn">クリア</button>',
+      '<button id="_el_close_btn">×</button>',
+      '</div>',
+      '<div id="_el_file_row">自動保存先: <span id="_el_file_status">(未設定 — 設定するとバックグラウンドで自動保存します)</span></div>',
+      '<div id="_el_content">(ログなし)</div>'
+    ].join('');
+    document.body.appendChild(panel);
+
+    document.getElementById('_el_pick_btn').addEventListener('click', pickFile);
+    document.getElementById('_el_dl_btn').addEventListener('click', downloadLog);
+    document.getElementById('_el_clear_btn').addEventListener('click', function () {
+      clearAll(function () {
+        var el = document.getElementById('_el_content');
+        if (el) el.textContent = '(ログなし)';
+      });
+    });
+    document.getElementById('_el_close_btn').addEventListener('click', _togglePanel);
+
+    _updateBadge();
+  });
+
+  window.ErrorLogger = { error: record.bind(null, 'ERROR'), warn: record.bind(null, 'WARN'), info: record.bind(null, 'INFO') };
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 'use strict';
@@ -911,6 +1194,7 @@ function hideCoordMessages() {
 function showCoordError(msg) {
   coordUi.errorBox.textContent = 'エラー: ' + msg;
   coordUi.errorBox.style.display = 'block';
+  if (window.ErrorLogger) window.ErrorLogger.error('[地図XML→DXF] ' + msg);
 }
 function setCoordProgress(v, msg) {
   coordUi.progressFill.style.width = v + '%';
@@ -1425,6 +1709,41 @@ function buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters) {
   };
 }
 
+const _baseBuildPrecheckInfo = buildPrecheckInfo;
+buildPrecheckInfo = function(bbox, demType, zoom, sampleStepMeters) {
+  if (!document.getElementById('elevSrcFile').checked) {
+    return _baseBuildPrecheckInfo(bbox, demType, zoom, sampleStepMeters);
+  }
+  const tileX0 = lon2tileX(bbox.west, zoom);
+  const tileX1 = lon2tileX(bbox.east, zoom);
+  const tileY0 = lat2tileY(bbox.north, zoom);
+  const tileY1 = lat2tileY(bbox.south, zoom);
+  const tileCols = tileX1 - tileX0 + 1;
+  const tileRows = tileY1 - tileY0 + 1;
+  const tileCount = tileCols * tileRows;
+  const centerLat = (bbox.south + bbox.north) / 2;
+  const resolutionMeters = groundResolution(centerLat, zoom);
+  const widthMeters = lonDistanceMeters(bbox.west, bbox.east, centerLat);
+  const heightMeters = latDistanceMeters(bbox.south, bbox.north);
+  return {
+    bbox,
+    demType,
+    zoom,
+    tileX0,
+    tileX1,
+    tileY0,
+    tileY1,
+    tileCols,
+    tileRows,
+    tileCount,
+    resolutionMeters,
+    widthMeters,
+    heightMeters,
+    sampleWidth: Math.max(2, Math.round(widthMeters / sampleStepMeters)),
+    sampleHeight: Math.max(2, Math.round(heightMeters / sampleStepMeters))
+  };
+};
+
 function hideElevationMessages() {
   elevErrorBox.style.display = 'none';
   elevSuccessBox.style.display = 'none';
@@ -1432,6 +1751,7 @@ function hideElevationMessages() {
 function showElevationError(msg) {
   elevErrorBox.textContent = 'Error: ' + msg;
   elevErrorBox.style.display = 'block';
+  if (window.ErrorLogger) window.ErrorLogger.error('[標高DXF] ' + msg);
 }
 function setElevationProgress(v, msg) {
   elevProgressSec.style.display = 'block';
@@ -1473,16 +1793,23 @@ function parseDemGml(xmlText) {
   const tupleEl = coverage.querySelector('doubleOrNilReasonTupleList') ||
                   coverage.querySelector('tupleList');
   if (!tupleEl) return null;
-  const tokens = tupleEl.textContent.trim().split(/\s+/);
-  /* axisOrder "+2 +1": y(lat)が先に変化、x(lon)が後 → カラム優先、y=0が南 */
+  /* FG-GML DEM format: each line is "type,elevation" e.g. "地表面,932.41" or "データなし,-9999.0"
+     axisLabels "x y": x=lon (cols, inner/fast), y=lat (rows, outer/slow)
+     → i = row_from_south * cols + col  (row-major, col is fast) */
   const raster = new Float32Array(cols * rows).fill(NaN);
-  for (let i = 0; i < tokens.length && i < cols * rows; i++) {
-    const v = parseFloat(tokens[i]);
-    if (!isFinite(v) || v >= 9000 || v <= -9000) continue;
-    const col = Math.floor(i / rows);
-    const southRow = i % rows;
-    const northRow = rows - 1 - southRow;
+  const lines = tupleEl.textContent.trim().split('\n');
+  let cellIdx = 0;
+  for (let li = 0; li < lines.length && cellIdx < cols * rows; li++) {
+    const line = lines[li].trim();
+    if (!line) continue;
+    const comma = line.indexOf(',');
+    const v = comma >= 0 ? parseFloat(line.slice(comma + 1)) : parseFloat(line);
+    if (!isFinite(v) || v >= 9000 || v <= -9000) { cellIdx++; continue; }
+    const col = cellIdx % cols;
+    const southRowIdx = Math.floor(cellIdx / cols);
+    const northRow = rows - 1 - southRowIdx;
     raster[northRow * cols + col] = v;
+    cellIdx++;
   }
   return {
     south, north, west, east, cols, rows, data: raster,
@@ -1556,6 +1883,12 @@ const demFileRemove = document.getElementById('demFileRemove');
 const demFileInfo   = document.getElementById('demFileInfo');
 const demFileArea   = document.getElementById('demFileArea');
 const tileApiSec    = document.getElementById('tileApiSection');
+const demFileRangeSection = document.getElementById('demFileRangeSection');
+const demUseViewBtn = document.getElementById('demUseViewBtn');
+const demResetExtentBtn = document.getElementById('demResetExtentBtn');
+const demRangeInfo = document.getElementById('demRangeInfo');
+
+let demFileExtent = null;
 
 async function setDemFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
@@ -1595,19 +1928,46 @@ async function setDemFile(file) {
   }
 }
 
+const _baseSetDemFile = setDemFile;
+setDemFile = async function(file) {
+  await _baseSetDemFile(file);
+  demFileExtent = null;
+  if (demFileRaster && demFileRaster._file) {
+    try {
+      const xmlText = await readXmlTextFromFile(file);
+      const grid = parseDemGml(xmlText);
+      if (grid) {
+        demFileExtent = { west: grid.west, east: grid.east, south: grid.south, north: grid.north };
+      }
+    } catch (e) {
+      console.warn('DEM extent preview init failed:', e);
+    }
+  }
+  if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
+  if (typeof window.ensureDemFileRangeMap === 'function' && demFileExtent) window.ensureDemFileRangeMap();
+};
+
 demFileDrop.addEventListener('click', () => demFileInput.click());
 demFileDrop.addEventListener('dragover', e => { e.preventDefault(); demFileDrop.classList.add('drag-over'); });
 demFileDrop.addEventListener('dragleave', () => demFileDrop.classList.remove('drag-over'));
 demFileDrop.addEventListener('drop', e => { e.preventDefault(); demFileDrop.classList.remove('drag-over'); if (e.dataTransfer.files[0]) setDemFile(e.dataTransfer.files[0]); });
 demFileInput.addEventListener('change', () => { if (demFileInput.files[0]) setDemFile(demFileInput.files[0]); });
 demFileRemove.addEventListener('click', () => {
-  demFileRaster = null; demFileBadge.style.display = 'none'; demFileInput.value = ''; demFileInfo.style.display = 'none';
+  demFileRaster = null; demFileExtent = null; demFileBadge.style.display = 'none'; demFileInput.value = ''; demFileInfo.style.display = 'none';
+  if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
+});
+
+[bboxWest, bboxEast, bboxSouth, bboxNorth].forEach(el => {
+  el.addEventListener('input', () => {
+    if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
+  });
 });
 
 document.querySelectorAll('input[name="elevSrc"]').forEach(r => r.addEventListener('change', () => {
   const useFile = document.getElementById('elevSrcFile').checked;
   demFileArea.style.display = useFile ? 'block' : 'none';
   tileApiSec.style.display  = useFile ? 'none'  : 'block';
+  if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
 }));
 
 elevConvertBtn.addEventListener('click', async () => {
@@ -1989,6 +2349,122 @@ function buildDxf({ layers, extents, entities }) {
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+/* -------------------- DEM file range picker -------------------- */
+var _demFileMap = null, _demFileExtentRect = null, _demFileSelectionRect = null;
+
+function _readCurrentElevBbox() {
+  try { return readBboxInputs(); } catch { return null; }
+}
+
+function _clampDemFileBbox(bbox) {
+  if (!bbox || !demFileExtent) return null;
+  var west = Math.max(bbox.west, demFileExtent.west);
+  var east = Math.min(bbox.east, demFileExtent.east);
+  var south = Math.max(bbox.south, demFileExtent.south);
+  var north = Math.min(bbox.north, demFileExtent.north);
+  if (!(west < east && south < north)) return null;
+  return { west: west, east: east, south: south, north: north };
+}
+
+function _setElevBboxInputs(bbox) {
+  if (!bbox) return;
+  document.getElementById('bboxWest').value = bbox.west.toFixed(6);
+  document.getElementById('bboxEast').value = bbox.east.toFixed(6);
+  document.getElementById('bboxSouth').value = bbox.south.toFixed(6);
+  document.getElementById('bboxNorth').value = bbox.north.toFixed(6);
+}
+
+function _updateDemFileMapRects() {
+  if (!_demFileMap || !demFileExtent) return;
+  var extentBounds = [[demFileExtent.south, demFileExtent.west], [demFileExtent.north, demFileExtent.east]];
+  if (!_demFileExtentRect) {
+    _demFileExtentRect = L.rectangle(extentBounds, {
+      color: '#63b3ed', weight: 2, fillColor: '#3182ce', fillOpacity: 0.08
+    }).addTo(_demFileMap);
+  } else {
+    _demFileExtentRect.setBounds(extentBounds);
+  }
+
+  var current = _clampDemFileBbox(_readCurrentElevBbox());
+  if (current) {
+    var currentBounds = [[current.south, current.west], [current.north, current.east]];
+    if (!_demFileSelectionRect) {
+      _demFileSelectionRect = L.rectangle(currentBounds, {
+        color: '#f6ad55', weight: 2, fillColor: '#f6ad55', fillOpacity: 0.12
+      }).addTo(_demFileMap);
+    } else {
+      _demFileSelectionRect.setBounds(currentBounds);
+    }
+  } else if (_demFileSelectionRect) {
+    _demFileMap.removeLayer(_demFileSelectionRect);
+    _demFileSelectionRect = null;
+  }
+}
+
+window.ensureDemFileRangeMap = function() {
+  if (!demFileExtent) return;
+  if (!_demFileMap) {
+    _demFileMap = L.map('demFileMapEl');
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+      attribution: 'GSI',
+      maxZoom: 18
+    }).addTo(_demFileMap);
+  }
+  _updateDemFileMapRects();
+  var bounds = L.latLngBounds(
+    [demFileExtent.south, demFileExtent.west],
+    [demFileExtent.north, demFileExtent.east]
+  );
+  _demFileMap.fitBounds(bounds.pad(0.15));
+  setTimeout(function() { _demFileMap.invalidateSize(); }, 80);
+};
+
+window.updateDemFileRangeUi = function() {
+  var useFile = document.getElementById('elevSrcFile').checked;
+  var section = document.getElementById('demFileRangeSection');
+  var info = document.getElementById('demRangeInfo');
+  var show = useFile && !!demFileExtent;
+  section.style.display = show ? 'block' : 'none';
+  if (!show) return;
+
+  var current = _clampDemFileBbox(_readCurrentElevBbox());
+  var extentMsg =
+    'DEM範囲: lon ' + demFileExtent.west.toFixed(6) + ' - ' + demFileExtent.east.toFixed(6) +
+    ' / lat ' + demFileExtent.south.toFixed(6) + ' - ' + demFileExtent.north.toFixed(6);
+  var currentMsg = current
+    ? '現在の変換範囲: lon ' + current.west.toFixed(6) + ' - ' + current.east.toFixed(6) +
+      ' / lat ' + current.south.toFixed(6) + ' - ' + current.north.toFixed(6)
+    : '現在の変換範囲: 未設定';
+  info.textContent = extentMsg + ' | ' + currentMsg;
+
+  if (_demFileMap) {
+    _updateDemFileMapRects();
+    setTimeout(function() { _demFileMap.invalidateSize(); }, 50);
+  }
+};
+
+document.getElementById('demUseViewBtn').addEventListener('click', function() {
+  if (!demFileExtent) return;
+  if (!_demFileMap) window.ensureDemFileRangeMap();
+  var bounds = _demFileMap.getBounds();
+  var bbox = _clampDemFileBbox({
+    west: bounds.getWest(),
+    east: bounds.getEast(),
+    south: bounds.getSouth(),
+    north: bounds.getNorth()
+  });
+  if (!bbox) return;
+  _setElevBboxInputs(bbox);
+  window.updateDemFileRangeUi();
+});
+
+document.getElementById('demResetExtentBtn').addEventListener('click', function() {
+  if (!demFileExtent) return;
+  _setElevBboxInputs(demFileExtent);
+  window.updateDemFileRangeUi();
+  window.ensureDemFileRangeMap();
+});
+
 /* -------------------- DEM 検索タブ -------------------- */
 var _demMap = null, _meshLayer = null;
 var _selMeshes = new Set();
@@ -2137,6 +2613,100 @@ document.getElementById('demDlBtn').addEventListener('click', function() {
     '4. ZIPをダウンロード\n\n' +
     '対象メッシュコード（クリップボードにコピー済）:\n' + codeStr
   );
+});
+
+/* ---- 標高タブの住所検索 ---- */
+document.getElementById('elevAddrBtn').addEventListener('click', async function() {
+  var q = document.getElementById('elevAddrInput').value.trim();
+  if (!q) return;
+  try {
+    var res = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+    var data = await res.json();
+    if (!data || !data.length) throw new Error('住所が見つかりませんでした');
+    var lon = data[0].geometry.coordinates[0];
+    var lat = data[0].geometry.coordinates[1];
+    var d = 0.005; /* 約500m */
+    document.getElementById('bboxWest').value  = (lon - d).toFixed(6);
+    document.getElementById('bboxEast').value  = (lon + d).toFixed(6);
+    document.getElementById('bboxSouth').value = (lat - d).toFixed(6);
+    document.getElementById('bboxNorth').value = (lat + d).toFixed(6);
+  } catch(e) {
+    alert('住所検索エラー: ' + e.message);
+  }
+});
+document.getElementById('elevAddrInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('elevAddrBtn').click();
+});
+
+/* ---- DEM検索 → 標高タブ連携 ---- */
+document.getElementById('demToElevBtn').addEventListener('click', function() {
+  if (_selMeshes.size === 0) return;
+  var bboxes = Array.from(_selMeshes).map(_meshBbox);
+  var south = Math.min.apply(null, bboxes.map(function(b){ return b.south; }));
+  var north = Math.max.apply(null, bboxes.map(function(b){ return b.north; }));
+  var west  = Math.min.apply(null, bboxes.map(function(b){ return b.west;  }));
+  var east  = Math.max.apply(null, bboxes.map(function(b){ return b.east;  }));
+  /* bbox を標高タブに入力 */
+  document.getElementById('bboxWest').value  = west.toFixed(6);
+  document.getElementById('bboxEast').value  = east.toFixed(6);
+  document.getElementById('bboxSouth').value = south.toFixed(6);
+  document.getElementById('bboxNorth').value = north.toFixed(6);
+  /* タイルAPIモードに切り替え */
+  document.getElementById('elevSrcTile').checked = true;
+  document.getElementById('demFileArea').style.display  = 'none';
+  document.getElementById('tileApiSection').style.display = 'block';
+  /* 標高タブへ切り替え */
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tab === 'elevPanel');
+  });
+  document.querySelectorAll('.panel').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'elevPanel');
+  });
+});
+
+/* ---- Ph.4: ZIP自動DL試行（ログイン済み前提） ---- */
+document.getElementById('demAutoDownloadBtn').addEventListener('click', async function() {
+  var codes = Array.from(_selMeshes);
+  var type  = document.getElementById('demSearchType').value;
+  var warn  = document.getElementById('demAutoDownloadWarn');
+  warn.style.display = 'none';
+  if (!codes.length) { alert('メッシュを選択してください'); return; }
+
+  var tried = 0, succeeded = 0;
+  for (var i = 0; i < codes.length; i++) {
+    var code = codes[i];
+    /* 試行するURL候補（認証済みCookieを使ったcredentials:'include'リクエスト） */
+    var candidates = [
+      'https://service.gsi.go.jp/kiban/download/FG-GML-' + code + '-' + type + '-latest.zip',
+      'https://service.gsi.go.jp/kiban/app/download?mesh=' + code + '&product=' + type
+    ];
+    var ok = false;
+    for (var j = 0; j < candidates.length; j++) {
+      try {
+        var r = await fetch(candidates[j], { credentials: 'include', mode: 'cors' });
+        if (r.ok && r.headers.get('content-type') && r.headers.get('content-type').includes('zip')) {
+          var blob = await r.blob();
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'FG-GML-' + code + '-' + type + '.zip';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          URL.revokeObjectURL(a.href);
+          ok = true; succeeded++;
+          break;
+        }
+      } catch(e) { /* CORS or network error */ }
+    }
+    tried++;
+    if (!ok) {
+      warn.textContent = '自動DLに失敗（' + code + '）: CORSポリシーまたは認証エラー。「基盤地図情報サービスを開く」から手動でDLしてください。';
+      warn.style.display = 'block';
+    }
+  }
+  if (succeeded > 0) {
+    warn.textContent = succeeded + '/' + tried + ' ファイルをDLしました。標高タブにドロップして変換できます。';
+    warn.className = 'message success';
+    warn.style.display = 'block';
+  }
 });
 
 /* タブ切り替え時に地図を初期化 */

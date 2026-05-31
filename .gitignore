@@ -12,3 +12,5 @@ sample_extracted/
 # その他
 .env
 *.log
+error_log*.txt
+tmp_*.js
