@@ -1928,19 +1928,59 @@ async function setDemFile(file) {
   }
 }
 
+/* FG-GMLメッシュコードをエントリ名から解析して2次メッシュ全体範囲を返す（展開不要・高速）
+   エントリ名例: FG-GML-5438-44-00-DEM1A-20250822.xml
+   JIS X 0410 公式計算: row=4桁目の上1桁, col=4桁目の下1桁 (0始まり) */
+function _getDemExtentFromEntryNames(xmlEntries) {
+  for (const entry of xmlEntries) {
+    const m = (entry.name || '').match(/FG-GML-(\d{4})-(\d{2})-/i);
+    if (!m) continue;
+    const latBand = parseInt(m[1].slice(0, 2), 10); // e.g. 54
+    const lonBand = parseInt(m[1].slice(2, 4), 10); // e.g. 38
+    const meshRow = parseInt(m[2][0], 10);           // e.g. 4
+    const meshCol = parseInt(m[2][1], 10);           // e.g. 4
+    if ([latBand, lonBand, meshRow, meshCol].some(isNaN)) continue;
+    return {
+      south: latBand * 2 / 3 + meshRow / 12,
+      north: latBand * 2 / 3 + (meshRow + 1) / 12,
+      west:  lonBand + 100 + meshCol / 8,
+      east:  lonBand + 100 + (meshCol + 1) / 8
+    };
+  }
+  return null;
+}
+
 const _baseSetDemFile = setDemFile;
 setDemFile = async function(file) {
   await _baseSetDemFile(file);
   demFileExtent = null;
   if (demFileRaster && demFileRaster._file) {
     try {
-      const xmlText = await readXmlTextFromFile(file);
-      const grid = parseDemGml(xmlText);
-      if (grid) {
-        demFileExtent = { west: grid.west, east: grid.east, south: grid.south, north: grid.north };
+      let fullExtent = null;
+      if (file.name.toLowerCase().endsWith('.zip') && typeof JSZip !== 'undefined') {
+        /* ZIPの場合: エントリ名のメッシュコードから全体範囲を計算（展開なし） */
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const xmlEntries = Object.values(zip.files).filter(f => !f.dir && f.name.toLowerCase().endsWith('.xml'));
+        fullExtent = _getDemExtentFromEntryNames(xmlEntries);
+        if (!fullExtent && xmlEntries.length) {
+          /* フォールバック: 最初のXMLを解析 */
+          const grid = parseDemGml(await xmlEntries[0].async('string'));
+          if (grid) fullExtent = { west: grid.west, east: grid.east, south: grid.south, north: grid.north };
+        }
+      } else {
+        /* 単一XMLファイル */
+        const grid = parseDemGml(await readXmlTextFromFile(file));
+        if (grid) fullExtent = { west: grid.west, east: grid.east, south: grid.south, north: grid.north };
+      }
+      if (fullExtent) {
+        demFileExtent = fullExtent;
+        document.getElementById('bboxWest').value  = fullExtent.west.toFixed(6);
+        document.getElementById('bboxEast').value  = fullExtent.east.toFixed(6);
+        document.getElementById('bboxSouth').value = fullExtent.south.toFixed(6);
+        document.getElementById('bboxNorth').value = fullExtent.north.toFixed(6);
       }
     } catch (e) {
-      console.warn('DEM extent preview init failed:', e);
+      console.warn('DEM extent detection failed:', e);
     }
   }
   if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
