@@ -1892,7 +1892,8 @@ async function parseDemZipToRaster(file, bbox, progressCallback) {
       if (lcM && ucM) {
         const fs = parseFloat(lcM[1]), fw = parseFloat(lcM[2]);
         const fn = parseFloat(ucM[1]), fe = parseFloat(ucM[2]);
-        if (fs >= bbox.north || fn <= bbox.south || fw >= bbox.east || fe <= bbox.west) {
+        const EPS = 1e-6; /* 浮動小数点誤差の許容マージン（約0.1m） */
+        if (fs >= bbox.north - EPS || fn <= bbox.south + EPS || fw >= bbox.east - EPS || fe <= bbox.west + EPS) {
           skippedCount++;
           cb(Math.round(i / total * 55), `スキップ ${i + 1}/${total}: ${shortName}（選択範囲外）`);
           continue;
@@ -1902,7 +1903,16 @@ async function parseDemZipToRaster(file, bbox, progressCallback) {
     const grid = parseDemGml(xmlText);
     if (grid) { grids.push(grid); parsedCount++; }
   }
-  if (!grids.length) throw new Error('DEM GMLの解析に失敗しました');
+  if (!grids.length) {
+    if (skippedCount > 0 && parsedCount === 0) {
+      throw new Error(
+        `指定範囲がDEMデータの範囲外です。\n` +
+        `全${total}ファイルが選択範囲外としてスキップされました。\n` +
+        `「DEM全範囲に戻す」ボタンで範囲をリセットしてから再試行してください。`
+      );
+    }
+    throw new Error('DEM GMLの解析に失敗しました（XMLの形式が不正の可能性があります）');
+  }
   cb(56, `解析完了: ${parsedCount}ファイル使用 / ${skippedCount}ファイルスキップ`);
   await uiYield();
 
