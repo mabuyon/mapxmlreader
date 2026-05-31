@@ -2069,20 +2069,20 @@ elevConvertBtn.addEventListener('click', async () => {
 
     /* DEMファイルモードは80%以降、タイルAPIは70%以降を使用 */
     const p1 = useFile ? 82 : 70;
-    const p2 = useFile ? 90 : 82;
+    const p2 = useFile ? 93 : 85;
     const p3 = useFile ? 96 : 92;
-    setElevationProgress(p1, '等高線を生成中...');
-    await uiYield();
-    const contourSegments = generateContours(raster, levels);
+    /* 等高線生成: p1〜p2 の範囲でレベルごとに進捗表示 */
+    const contourCb = (pct, msg) => setElevationProgress(p1 + Math.round(pct * (p2 - p1) / 100), msg);
+    const contourSegments = await generateContours(raster, levels, contourCb);
 
     let elevPoints = [];
     if (pointSpacing > 0) {
-      setElevationProgress(p2, '標高点をサンプリング中...');
+      setElevationProgress(p2, `標高点をサンプリング中... (等高線 ${contourSegments.length.toLocaleString()} 本生成済)`);
       await uiYield();
       elevPoints = sampleElevationPoints(raster, pointSpacing);
     }
 
-    setElevationProgress(p3, 'DXFを生成中...');
+    setElevationProgress(p3, `DXFを生成中... (等高線 ${contourSegments.length.toLocaleString()} 本 / 標高点 ${elevPoints.length.toLocaleString()} 点)`);
     await uiYield();
     const dxf = generateElevationDxf({
       raster,
@@ -2223,13 +2223,28 @@ function contourIntersections(v0, v1, v2, v3, level) {
   return pts;
 }
 
-function generateContours(raster, levels) {
+async function generateContours(raster, levels, progressCallback) {
   const segments = [];
   const { width, height, data, lonAtPixel, latAtPixel, centerLon, centerLat } = raster;
   /* 1セルあたりの最大等高線通過数（これを超える急斜面セルはスキップ） */
   const ci = levels.length > 1 ? Math.abs(levels[1] - levels[0]) : 1;
   const MAX_CELL_RANGE = ci * 10;
-  for (const level of levels) {
+  const total = levels.length;
+  let lastYieldTime = performance.now();
+  for (let li = 0; li < total; li++) {
+    const level = levels[li];
+    /* 100ms経過ごとにUIを更新（毎ループはオーバーヘッドが大きいため時間ベース） */
+    const now = performance.now();
+    if (now - lastYieldTime >= 100) {
+      if (progressCallback) {
+        progressCallback(
+          Math.round(li / total * 100),
+          `等高線生成中 ${li}/${total} レベル完了 — ${level.toFixed(2)}m 処理中 (線分 ${segments.length.toLocaleString()} 本)`
+        );
+      }
+      await uiYield();
+      lastYieldTime = performance.now();
+    }
     for (let y = 0; y < height - 1; y++) {
       for (let x = 0; x < width - 1; x++) {
         const v0 = sampleRaster(data, width, x, y);
@@ -2262,6 +2277,9 @@ function generateContours(raster, levels) {
         }
       }
     }
+  }
+  if (progressCallback) {
+    progressCallback(100, `等高線生成完了 — ${total} レベル / 線分 ${segments.length.toLocaleString()} 本`);
   }
   return segments;
 }
