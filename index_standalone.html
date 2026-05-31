@@ -1125,6 +1125,48 @@ function publicCoordToLatLon(x, y, zone) {
   return [phi * 180/Math.PI, lam * 180/Math.PI];
 }
 
+/* 緯経度から最近の系番号を自動判定 */
+function autoDetectZone(lat, lon) {
+  let best = 9, bestD = Infinity;
+  for (let z = 1; z <= 19; z++) {
+    const o = ZONE_ORIGINS[z];
+    if (!o) continue;
+    const d = Math.hypot(lon - o[1], (lat - o[0]) * 1.5);
+    if (d < bestD) { bestD = d; best = z; }
+  }
+  return best;
+}
+
+/* 緯経度 → 公共座標系 (X=北向き, Y=東向き) 単位：メートル
+   Snyder TM 順変換 (逆変換 publicCoordToLatLon と対称) */
+function latLonToPublicCoord(lat, lon, zone) {
+  const org = ZONE_ORIGINS[zone];
+  if (!org) return null;
+  const phi0 = org[0] * Math.PI / 180;
+  const lam0 = org[1] * Math.PI / 180;
+  const phi  = lat * Math.PI / 180;
+  const lam  = lon * Math.PI / 180;
+  const a = 6378137.0, f = 1/298.257222101, m0 = 0.9999;
+  const e2 = 2*f - f*f, ep2 = e2/(1-e2);
+  const N = a / Math.sqrt(1 - e2 * Math.sin(phi)**2);
+  const T = Math.tan(phi)**2;
+  const C = ep2 * Math.cos(phi)**2;
+  const A = Math.cos(phi) * (lam - lam0);
+  const M0 = tmMeridionalArc(a, e2, phi0);
+  const M  = tmMeridionalArc(a, e2, phi);
+  const pubX = m0 * (M - M0 + N * Math.tan(phi) * (
+    A**2 / 2 +
+    A**4 / 24 * (5 - T + 9*C + 4*C**2) +
+    A**6 / 720 * (61 - 58*T + T**2 + 600*C - 330*ep2)
+  ));
+  const pubY = m0 * N * (
+    A +
+    A**3 / 6 * (1 - T + C) +
+    A**5 / 120 * (5 - 18*T + T**2 + 72*C - 58*ep2)
+  );
+  return [pubX, pubY]; /* [北向きX m, 東向きY m] */
+}
+
 function detectZoneFromDoc(doc) {
   /* 系番号を示す要素を探す */
   for (const el of doc.querySelectorAll('*')) {
@@ -2087,6 +2129,17 @@ elevConvertBtn.addEventListener('click', async () => {
     } else {
       raster = await fetchDemRaster(lastPrecheck, setElevationProgress);
     }
+
+    /* 公共座標系変換を raster に追加（X=北向き, Y=東向き, mm単位） */
+    const zoneFromUi = parseInt(document.getElementById('coordZone').value, 10) || 0;
+    raster.zone = zoneFromUi || autoDetectZone(raster.centerLat, raster.centerLon);
+    raster.toMm = (lon, lat) => {
+      const c = latLonToPublicCoord(lat, lon, raster.zone);
+      if (!c) return [0, 0];
+      /* DXF: X軸=東向き(Y公共), Y軸=北向き(X公共) → JWW標準・測量どちらでも正立 */
+      return [c[1] * 1000, c[0] * 1000];
+    };
+
     const levels = buildContourLevels(raster.minElevation, raster.maxElevation, contourInterval);
 
     /* DEMファイルモードは80%以降、タイルAPIは70%以降を使用 */
@@ -2120,7 +2173,8 @@ elevConvertBtn.addEventListener('click', async () => {
     downloadTextFile(filename, dxf);
     elevSuccessBox.innerHTML =
       `標高DXFを出力しました: <b>${escapeHtml(filename)}</b><br>` +
-      `変換範囲 ${fmtNum(lastPrecheck.widthMeters, 1)}m × ${fmtNum(lastPrecheck.heightMeters, 1)}m ／ タイル ${lastPrecheck.tileCount}枚<br>` +
+      `座標系: 公共座標 <b>${raster.zone}系</b>（X=北向き mm, Y=東向き mm）<br>` +
+      `変換範囲 ${fmtNum(lastPrecheck.widthMeters, 1)}m × ${fmtNum(lastPrecheck.heightMeters, 1)}m<br>` +
       `等高線レベル ${levels.length}本 ／ 標高点 ${elevPoints.length}点`;
     elevSuccessBox.style.display = 'block';
     setElevationProgress(100, '完了！');
@@ -2247,7 +2301,7 @@ function contourIntersections(v0, v1, v2, v3, level) {
 
 async function generateContours(raster, levels, progressCallback) {
   const segments = [];
-  const { width, height, data, lonAtPixel, latAtPixel, centerLon, centerLat } = raster;
+  const { width, height, data, lonAtPixel, latAtPixel, toMm } = raster;
   /* 1セルあたりの最大等高線通過数（これを超える急斜面セルはスキップ） */
   const ci = levels.length > 1 ? Math.abs(levels[1] - levels[0]) : 1;
   const MAX_CELL_RANGE = ci * 10;
@@ -2282,19 +2336,19 @@ async function generateContours(raster, levels, progressCallback) {
         if (intersections.length === 2) {
           segments.push({
             level,
-            a: gridPointToLocalMm(x + intersections[0][0], y + intersections[0][1], lonAtPixel, latAtPixel, centerLon, centerLat),
-            b: gridPointToLocalMm(x + intersections[1][0], y + intersections[1][1], lonAtPixel, latAtPixel, centerLon, centerLat)
+            a: gridPointToMm(x + intersections[0][0], y + intersections[0][1], lonAtPixel, latAtPixel, toMm),
+            b: gridPointToMm(x + intersections[1][0], y + intersections[1][1], lonAtPixel, latAtPixel, toMm)
           });
         } else if (intersections.length === 4) {
           segments.push({
             level,
-            a: gridPointToLocalMm(x + intersections[0][0], y + intersections[0][1], lonAtPixel, latAtPixel, centerLon, centerLat),
-            b: gridPointToLocalMm(x + intersections[1][0], y + intersections[1][1], lonAtPixel, latAtPixel, centerLon, centerLat)
+            a: gridPointToMm(x + intersections[0][0], y + intersections[0][1], lonAtPixel, latAtPixel, toMm),
+            b: gridPointToMm(x + intersections[1][0], y + intersections[1][1], lonAtPixel, latAtPixel, toMm)
           });
           segments.push({
             level,
-            a: gridPointToLocalMm(x + intersections[2][0], y + intersections[2][1], lonAtPixel, latAtPixel, centerLon, centerLat),
-            b: gridPointToLocalMm(x + intersections[3][0], y + intersections[3][1], lonAtPixel, latAtPixel, centerLon, centerLat)
+            a: gridPointToMm(x + intersections[2][0], y + intersections[2][1], lonAtPixel, latAtPixel, toMm),
+            b: gridPointToMm(x + intersections[3][0], y + intersections[3][1], lonAtPixel, latAtPixel, toMm)
           });
         }
       }
@@ -2306,14 +2360,12 @@ async function generateContours(raster, levels, progressCallback) {
   return segments;
 }
 
-function gridPointToLocalMm(gridX, gridY, lonAtPixel, latAtPixel, centerLon, centerLat) {
-  const lon = lonAtPixel(gridX);
-  const lat = latAtPixel(gridY);
-  return lonLatToLocalMm(lon, lat, centerLon, centerLat);
+function gridPointToMm(gridX, gridY, lonAtPixel, latAtPixel, toMm) {
+  return toMm(lonAtPixel(gridX), latAtPixel(gridY));
 }
 
 function sampleElevationPoints(raster, spacingMeters) {
-  const { width, height, data, centerLon, centerLat, lonAtPixel, latAtPixel } = raster;
+  const { width, height, data, centerLat, toMm, lonAtPixel, latAtPixel } = raster;
   const points = [];
   const lonStep = width > 1 ? Math.abs(lonDistanceMeters(lonAtPixel(0), lonAtPixel(1), centerLat)) : spacingMeters;
   const latStep = height > 1 ? Math.abs(latDistanceMeters(latAtPixel(1), latAtPixel(0))) : spacingMeters;
@@ -2323,7 +2375,7 @@ function sampleElevationPoints(raster, spacingMeters) {
     for (let x = 0; x < width; x += stepX) {
       const h = sampleRaster(data, width, x, y);
       if (!Number.isFinite(h)) continue;
-      const [px, py] = lonLatToLocalMm(lonAtPixel(x), latAtPixel(y), centerLon, centerLat);
+      const [px, py] = toMm(lonAtPixel(x), latAtPixel(y));
       points.push({ x: px, y: py, elevation: h });
     }
   }
@@ -2339,11 +2391,12 @@ function generateElevationDxf(opts) {
     includePointLabels,
     includeContourLabels
   } = opts;
+  const { toMm } = raster;
   const corners = [
-    lonLatToLocalMm(raster.bbox.west, raster.bbox.north, raster.centerLon, raster.centerLat),
-    lonLatToLocalMm(raster.bbox.east, raster.bbox.north, raster.centerLon, raster.centerLat),
-    lonLatToLocalMm(raster.bbox.east, raster.bbox.south, raster.centerLon, raster.centerLat),
-    lonLatToLocalMm(raster.bbox.west, raster.bbox.south, raster.centerLon, raster.centerLat)
+    toMm(raster.bbox.west, raster.bbox.north),
+    toMm(raster.bbox.east, raster.bbox.north),
+    toMm(raster.bbox.east, raster.bbox.south),
+    toMm(raster.bbox.west, raster.bbox.south)
   ];
   const extents = boundsFromPoints(corners.concat(elevPoints.map(p => [p.x, p.y])));
   const textHeight = 1500;
@@ -2402,17 +2455,21 @@ function boundsFromPoints(points) {
     if (p[1] < minY) minY = p[1];
     if (p[1] > maxY) maxY = p[1];
   }
-  if (!Number.isFinite(minX)) return { width: 1000, height: 1000 };
-  return {
-    width: Math.max(1000, maxX - minX + 2000),
-    height: Math.max(1000, maxY - minY + 2000)
-  };
+  if (!Number.isFinite(minX)) return { minX: 0, minY: 0, maxX: 1000, maxY: 1000 };
+  const pad = 1000;
+  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
 }
 
 /* -------------------- shared DXF writer -------------------- */
 function buildDxf({ layers, extents, entities }) {
-  const width = Math.max(1000, extents.width);
-  const height = Math.max(1000, extents.height);
+  /* extents は {minX,minY,maxX,maxY} または旧形式 {width,height} に対応 */
+  const minX = extents.minX !== undefined ? extents.minX : 0;
+  const minY = extents.minY !== undefined ? extents.minY : 0;
+  const maxX = extents.maxX !== undefined ? extents.maxX : minX + Math.max(1000, extents.width || 1000);
+  const maxY = extents.maxY !== undefined ? extents.maxY : minY + Math.max(1000, extents.height || 1000);
+  const width  = Math.max(1000, maxX - minX);
+  const height = Math.max(1000, maxY - minY);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const out = [];
   const push = (...args) => { for (const arg of args) out.push(String(arg)); };
   const f = n => (Number.isFinite(n) ? n : 0).toFixed(3);
@@ -2438,17 +2495,17 @@ function buildDxf({ layers, extents, entities }) {
 
   push('  0','SECTION','  2','HEADER',
     '  9','$ACADVER','  1','AC1009',
-    '  9','$EXTMIN',' 10','0.000',' 20','0.000',' 30','0.000',
-    '  9','$EXTMAX',' 10',f(width),' 20',f(height),' 30','0.000',
-    '  9','$LIMMIN',' 10','0.000',' 20','0.000',
-    '  9','$LIMMAX',' 10',f(width),' 20',f(height),
+    '  9','$EXTMIN',' 10',f(minX),' 20',f(minY),' 30','0.000',
+    '  9','$EXTMAX',' 10',f(maxX),' 20',f(maxY),' 30','0.000',
+    '  9','$LIMMIN',' 10',f(minX),' 20',f(minY),
+    '  9','$LIMMAX',' 10',f(maxX),' 20',f(maxY),
     '  0','ENDSEC');
 
   push('  0','SECTION','  2','TABLES');
   push('  0','TABLE','  2','VPORT',' 70','1',
     '  0','VPORT','  2','*ACTIVE',' 70','0',
     ' 10','0.0',' 20','0.0',' 11','1.0',' 21','1.0',
-    ' 12',f(width / 2),' 22',f(height / 2),
+    ' 12',f(cx),' 22',f(cy),
     ' 13','0.0',' 23','0.0',
     ' 14','0.5',' 24','0.5',' 15','0.5',' 25','0.5',
     ' 16','0.0',' 26','0.0',' 36','1.0',
