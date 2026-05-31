@@ -407,16 +407,6 @@ input[type="file"] { display: none; }
                 <button class="rm" id="demFileRemove" type="button">×</button>
               </div>
               <div class="message warn" id="demFileInfo"></div>
-              <div class="section" id="demFileRangeSection" style="display:none;margin-top:14px;padding:14px">
-                <h2 style="font-size:.98rem;margin-bottom:8px">DEMファイル内の変換範囲</h2>
-                <p class="hint" style="margin-bottom:10px">地図を移動・拡大して、表示中の範囲を等高線変換対象にできます。選択はDEMファイルの範囲内に自動で制限されます。</p>
-                <div id="demFileMapEl" style="height:280px;border-radius:12px;border:1px solid var(--line);background:#0d1420"></div>
-                <div class="btn-row" style="margin-top:10px">
-                  <button class="btn secondary" id="demUseViewBtn" type="button">現在の表示範囲を使う</button>
-                  <button class="btn secondary" id="demResetExtentBtn" type="button">DEM全範囲に戻す</button>
-                </div>
-                <div class="message warn" id="demRangeInfo" style="display:block;margin-top:10px"></div>
-              </div>
             </div>
           </div>
 
@@ -593,6 +583,16 @@ DEM5A/B/C: Z 1-15
 DEM10B (dem_png): Z 1-14</div>
           </div>
         </aside>
+      </div>
+      <div id="demFileRangeSection" style="display:none;margin-top:18px;border:1px solid var(--line);border-radius:16px;padding:16px 20px;background:var(--panel)">
+        <h2 style="font-size:.98rem;margin-bottom:8px">DEMファイル内の変換範囲</h2>
+        <p class="hint" style="margin-bottom:10px">地図を移動・拡大して変換範囲を指定し「現在の表示範囲を使う」を押してください。選択はDEMファイルの範囲内に自動で制限されます。</p>
+        <div id="demFileMapEl" style="height:480px;border-radius:12px;border:1px solid var(--line);background:#0d1420"></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn secondary" id="demUseViewBtn" type="button">現在の表示範囲を使う</button>
+          <button class="btn secondary" id="demResetExtentBtn" type="button">DEM全範囲に戻す</button>
+        </div>
+        <div class="message warn" id="demRangeInfo" style="display:block;margin-top:10px"></div>
       </div>
     </section>
     <section class="panel" id="demSearchPanel">
@@ -1831,18 +1831,38 @@ async function parseDemZipToRaster(file, bbox, progressCallback) {
   );
   if (!entries.length) throw new Error('ZIP内にXMLファイルが見つかりません');
 
-  /* ファイルを1件ずつ逐次解析して進捗を表示 */
+  /* ファイルを1件ずつ逐次解析して進捗を表示
+     bboxが指定されている場合: 正規表現でエンベロープを取得し選択範囲外をスキップ
+     → 範囲外ファイルの重いラスター解析を省略して高速化 */
   const grids = [];
   const total = entries.length;
+  let parsedCount = 0, skippedCount = 0;
   for (let i = 0; i < total; i++) {
     const entry = entries[i];
-    const shortName = entry.name.replace(/.*\//, ''); /* パスを除いたファイル名 */
-    cb(Math.round((i / total) * 60), `XML解析中 ${i + 1}/${total}: ${shortName}`);
+    const shortName = entry.name.replace(/.*\//, '');
+    cb(Math.round(i / total * 55), `読込中 ${i + 1}/${total}: ${shortName}`);
     await uiYield();
-    const grid = parseDemGml(await entry.async('string'));
-    if (grid) grids.push(grid);
+    const xmlText = await entry.async('string');
+    /* bboxとのエンベロープ重複チェック（ラスター解析前に実施） */
+    if (bbox) {
+      const lcM = xmlText.match(/<gml:lowerCorner>\s*([\d.]+)\s+([\d.]+)/);
+      const ucM = xmlText.match(/<gml:upperCorner>\s*([\d.]+)\s+([\d.]+)/);
+      if (lcM && ucM) {
+        const fs = parseFloat(lcM[1]), fw = parseFloat(lcM[2]);
+        const fn = parseFloat(ucM[1]), fe = parseFloat(ucM[2]);
+        if (fs >= bbox.north || fn <= bbox.south || fw >= bbox.east || fe <= bbox.west) {
+          skippedCount++;
+          cb(Math.round(i / total * 55), `スキップ ${i + 1}/${total}: ${shortName}（選択範囲外）`);
+          continue;
+        }
+      }
+    }
+    const grid = parseDemGml(xmlText);
+    if (grid) { grids.push(grid); parsedCount++; }
   }
   if (!grids.length) throw new Error('DEM GMLの解析に失敗しました');
+  cb(56, `解析完了: ${parsedCount}ファイル使用 / ${skippedCount}ファイルスキップ`);
+  await uiYield();
 
   cb(61, `範囲を計算中... (有効ファイル ${grids.length}/${total})`);
   await uiYield();
@@ -1866,6 +1886,8 @@ async function parseDemZipToRaster(file, bbox, progressCallback) {
   /* グリッド結合：ファイルごとに進捗更新 */
   for (let gi = 0; gi < grids.length; gi++) {
     const g = grids[gi];
+    /* 念のため再度重複チェック */
+    if (g.south >= b.north || g.north <= b.south || g.west >= b.east || g.east <= b.west) continue;
     cb(62 + Math.round((gi / grids.length) * 15), `格子結合中 ${gi + 1}/${grids.length}`);
     if (gi % 3 === 0) await uiYield();
     for (let r = 0; r < rows; r++) {
