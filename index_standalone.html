@@ -1819,15 +1819,33 @@ function parseDemGml(xmlText) {
 }
 
 /* ZIP内の全GMLを合成してラスターを返す */
-async function parseDemZipToRaster(file, bbox) {
+async function parseDemZipToRaster(file, bbox, progressCallback) {
   if (typeof JSZip === 'undefined') throw new Error('JSZipが読み込まれていません');
+  const cb = progressCallback || (() => {});
+
+  cb(0, 'ZIPを読み込み中...');
+  await uiYield();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const entries = Object.values(zip.files).filter(f =>
     !f.dir && f.name.toLowerCase().endsWith('.xml')
   );
   if (!entries.length) throw new Error('ZIP内にXMLファイルが見つかりません');
-  const grids = (await Promise.all(entries.map(async e => parseDemGml(await e.async('string'))))).filter(Boolean);
+
+  /* ファイルを1件ずつ逐次解析して進捗を表示 */
+  const grids = [];
+  const total = entries.length;
+  for (let i = 0; i < total; i++) {
+    const entry = entries[i];
+    const shortName = entry.name.replace(/.*\//, ''); /* パスを除いたファイル名 */
+    cb(Math.round((i / total) * 60), `XML解析中 ${i + 1}/${total}: ${shortName}`);
+    await uiYield();
+    const grid = parseDemGml(await entry.async('string'));
+    if (grid) grids.push(grid);
+  }
   if (!grids.length) throw new Error('DEM GMLの解析に失敗しました');
+
+  cb(61, `範囲を計算中... (有効ファイル ${grids.length}/${total})`);
+  await uiYield();
   const ext = {
     south: Math.min(...grids.map(g => g.south)),
     north: Math.max(...grids.map(g => g.north)),
@@ -1844,7 +1862,12 @@ async function parseDemZipToRaster(file, bbox) {
   const cols = Math.round((b.east - b.west) / lonStep) + 1;
   const rows = Math.round((b.north - b.south) / latStep) + 1;
   const data = new Float32Array(cols * rows).fill(NaN);
-  for (const g of grids) {
+
+  /* グリッド結合：ファイルごとに進捗更新 */
+  for (let gi = 0; gi < grids.length; gi++) {
+    const g = grids[gi];
+    cb(62 + Math.round((gi / grids.length) * 15), `格子結合中 ${gi + 1}/${grids.length}`);
+    if (gi % 3 === 0) await uiYield();
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const lat = b.north - r * latStep;
@@ -1858,6 +1881,9 @@ async function parseDemZipToRaster(file, bbox) {
       }
     }
   }
+
+  cb(78, '標高値を集計中...');
+  await uiYield();
   let minEl = Infinity, maxEl = -Infinity;
   for (let i = 0; i < data.length; i++) {
     if (isFinite(data[i])) { minEl = Math.min(minEl, data[i]); maxEl = Math.max(maxEl, data[i]); }
@@ -2030,29 +2056,33 @@ elevConvertBtn.addEventListener('click', async () => {
     let raster;
     if (useFile) {
       if (!demFileRaster || !demFileRaster._file) throw new Error('DEMファイルを選択してください');
-      setElevationProgress(20, 'DEMファイルを解析中...');
-      await uiYield();
       const bbox = (() => { try { return readBboxInputs(); } catch { return null; } })();
-      raster = await parseDemZipToRaster(demFileRaster._file, bbox);
-      setElevationProgress(60, 'DEMファイル読み込み完了');
+      /* 20〜80% をDEMファイル処理に割り当て */
+      const demCb = (pct, msg) => setElevationProgress(20 + Math.round(pct * 0.6), msg);
+      raster = await parseDemZipToRaster(demFileRaster._file, bbox, demCb);
+      setElevationProgress(80, `DEMファイル読み込み完了`);
       await uiYield();
     } else {
       raster = await fetchDemRaster(lastPrecheck, setElevationProgress);
     }
     const levels = buildContourLevels(raster.minElevation, raster.maxElevation, contourInterval);
 
-    setElevationProgress(70, '等高線を生成中...');
+    /* DEMファイルモードは80%以降、タイルAPIは70%以降を使用 */
+    const p1 = useFile ? 82 : 70;
+    const p2 = useFile ? 90 : 82;
+    const p3 = useFile ? 96 : 92;
+    setElevationProgress(p1, '等高線を生成中...');
     await uiYield();
     const contourSegments = generateContours(raster, levels);
 
     let elevPoints = [];
     if (pointSpacing > 0) {
-      setElevationProgress(82, '標高点をサンプリング中...');
+      setElevationProgress(p2, '標高点をサンプリング中...');
       await uiYield();
       elevPoints = sampleElevationPoints(raster, pointSpacing);
     }
 
-    setElevationProgress(92, 'DXFを生成中...');
+    setElevationProgress(p3, 'DXFを生成中...');
     await uiYield();
     const dxf = generateElevationDxf({
       raster,
