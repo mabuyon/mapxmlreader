@@ -27,10 +27,10 @@ body {
     var(--bg);
   color: var(--text);
   min-height: 100vh;
-  padding: 24px;
+  padding: 8px 10px;
 }
 .app {
-  width: min(1120px, 100%);
+  width: min(1400px, 100%);
   margin: 0 auto;
   background: rgba(17, 22, 34, .92);
   border: 1px solid var(--line);
@@ -410,74 +410,28 @@ input[type="file"] { display: none; }
             </div>
           </div>
 
-          <div class="section">
-            <h2>Step 1. 変換範囲の決定</h2>
-            <p class="hint">範囲は手入力、住所検索、または地図XMLから自動読込できます。</p>
-
-            <div style="display:flex;gap:8px;margin-bottom:12px">
-              <input id="elevAddrInput" type="text" placeholder="住所・地名から範囲を設定（例: 松本市）"
-                style="flex:1;min-height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.9rem">
-              <button id="elevAddrBtn" class="btn secondary" type="button" style="min-width:64px;padding:0 12px">検索</button>
-            </div>
-
-            <div class="field-grid">
-              <div class="field">
-                <label for="bboxWest">西端経度 (lon)</label>
-                <input id="bboxWest" type="number" step="0.000001" placeholder="139.750000">
-              </div>
-              <div class="field">
-                <label for="bboxEast">東端経度 (lon)</label>
-                <input id="bboxEast" type="number" step="0.000001" placeholder="139.760000">
-              </div>
-              <div class="field">
-                <label for="bboxSouth">南端緯度 (lat)</label>
-                <input id="bboxSouth" type="number" step="0.000001" placeholder="35.680000">
-              </div>
-              <div class="field">
-                <label for="bboxNorth">北端緯度 (lat)</label>
-                <input id="bboxNorth" type="number" step="0.000001" placeholder="35.690000">
-              </div>
-            </div>
-
-            <div class="field" style="margin-top:12px">
-              <label for="coordZone">公共座標系の系番号（XMLから範囲を読み込む場合）</label>
-              <select id="coordZone">
-                <option value="0">自動検出</option>
-                <option value="1">1系 — 長崎・鹿児島西部</option>
-                <option value="2">2系 — 福岡・佐賀・熊本・大分・宮崎・鹿児島</option>
-                <option value="3">3系 — 山口・島根・広島</option>
-                <option value="4">4系 — 香川・愛媛・徳島・高知</option>
-                <option value="5">5系 — 兵庫・鳥取・岡山</option>
-                <option value="6">6系 — 京都・大阪・福井・滋賀・三重・奈良・和歌山</option>
-                <option value="7">7系 — 石川・富山・岐阜・愛知</option>
-                <option value="8">8系 — 長野・新潟・静岡・山梨・福島・栃木</option>
-                <option value="9">9系 — 東京・神奈川・千葉・埼玉・茨城・群馬等</option>
-                <option value="10">10系 — 青森・秋田・山形・岩手・宮城</option>
-                <option value="11">11系 — 北海道西部（小樽・函館等）</option>
-                <option value="12">12系 — 北海道中部（札幌・旭川等）</option>
-                <option value="13">13系 — 北海道東部（網走・釧路等）</option>
-                <option value="14">14系 — 諸島（小笠原・南鳥島）</option>
-                <option value="15">15系 — 沖縄本島・奄美大島等</option>
-                <option value="16">16系 — 石垣島・西表島等</option>
-                <option value="17">17系 — 沖永良部・与論等</option>
-                <option value="18">18系 — 硫黄島</option>
-                <option value="19">19系 — 南大東島</option>
-              </select>
-            </div>
-            <div class="btn-row">
-              <button class="btn secondary" id="loadRangeFromXmlBtn" type="button">地図XMLから範囲読込</button>
-            </div>
-
+          <!-- Step 1 削除後も内部ロジックから参照される要素を非表示で保持 -->
+          <div style="display:none" aria-hidden="true">
+            <input id="bboxWest"  type="number" step="0.000001">
+            <input id="bboxEast"  type="number" step="0.000001">
+            <input id="bboxSouth" type="number" step="0.000001">
+            <input id="bboxNorth" type="number" step="0.000001">
+            <select id="coordZone">
+              <option value="0">自動検出</option>
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+              <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+              <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+              <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+              <option value="19">19</option>
+            </select>
+            <input id="elevAddrInput" type="text">
+            <button id="elevAddrBtn" type="button"></button>
+            <button id="loadRangeFromXmlBtn" type="button"></button>
             <input type="file" id="rangeFileInput" accept=".xml,.zip">
-            <div class="file-badge" id="rangeFileBadge">
-              <div class="info">
-                <div class="name" id="rangeFileName">-</div>
-                <div class="size" id="rangeFileSize">-</div>
-              </div>
-              <button class="rm" id="rangeRemoveBtn" type="button">×</button>
-            </div>
-
-            <div class="message warn" id="rangeWarnBox"></div>
+            <div id="rangeFileBadge"><div class="info"><div id="rangeFileName"></div><div id="rangeFileSize"></div></div><button id="rangeRemoveBtn" type="button"></button></div>
+            <div id="rangeWarnBox"></div>
           </div>
 
           <div class="section" id="tileApiSection" style="display:none">
@@ -508,54 +462,6 @@ input[type="file"] { display: none; }
             <div class="summary-list" id="precheckSummary"></div>
           </div>
 
-          <div class="section">
-            <h2>Step 3. 変換設定と実行</h2>
-            <div class="field-grid three">
-              <div class="field">
-                <label for="contourInterval">主等高線間隔[m]</label>
-                <select id="contourInterval">
-                  <option value="0.5">0.5</option>
-                  <option value="1" selected>1</option>
-                  <option value="2">2</option>
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="majorEvery">計曲線ピッチ[m]</label>
-                <select id="majorEvery">
-                  <option value="5">5</option>
-                  <option value="10" selected>10</option>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="pointSpacing">標高点の配置間隔[m]</label>
-                <select id="pointSpacing">
-                  <option value="0">出力しない</option>
-                  <option value="5">5</option>
-                  <option value="10" selected>10</option>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                </select>
-              </div>
-            </div>
-            <div class="btn-row">
-              <label class="check"><input id="includePointLabels" type="checkbox" checked> 標高点に数値を付ける</label>
-              <label class="check"><input id="includeContourLabels" type="checkbox"> 等高線ラベルを付ける</label>
-            </div>
-            <div class="btn-row">
-              <button class="btn" id="elevConvertBtn" type="button">標高DXFを作成</button>
-            </div>
-
-            <div class="progress-section" id="elevProgressSection">
-              <div class="progress-track"><div class="progress-fill" id="elevProgressFill"></div></div>
-              <div class="progress-label" id="elevProgressLabel">待機中</div>
-            </div>
-            <div class="message error" id="elevErrorBox"></div>
-            <div class="message success" id="elevSuccessBox"></div>
-          </div>
         </div>
 
         <aside>
@@ -593,6 +499,55 @@ DEM10B (dem_png): Z 1-14</div>
           <button class="btn secondary" id="demResetExtentBtn" type="button">DEM全範囲に戻す</button>
         </div>
         <div class="message warn" id="demRangeInfo" style="display:block;margin-top:10px"></div>
+      </div>
+
+      <div class="section" style="margin-top:18px">
+        <h2>Step 3. 変換設定と実行</h2>
+        <div class="field-grid three">
+          <div class="field">
+            <label for="contourInterval">主等高線間隔[m]</label>
+            <select id="contourInterval">
+              <option value="0.5">0.5</option>
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="majorEvery">計曲線ピッチ[m]</label>
+            <select id="majorEvery">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="pointSpacing">標高点の配置間隔[m]</label>
+            <select id="pointSpacing">
+              <option value="0">出力しない</option>
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row">
+          <label class="check"><input id="includePointLabels" type="checkbox" checked> 標高点に数値を付ける</label>
+          <label class="check"><input id="includeContourLabels" type="checkbox"> 等高線ラベルを付ける</label>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="elevConvertBtn" type="button">標高DXFを作成</button>
+        </div>
+
+        <div class="progress-section" id="elevProgressSection">
+          <div class="progress-track"><div class="progress-fill" id="elevProgressFill"></div></div>
+          <div class="progress-label" id="elevProgressLabel">待機中</div>
+        </div>
+        <div class="message error" id="elevErrorBox"></div>
+        <div class="message success" id="elevSuccessBox"></div>
       </div>
     </section>
     <section class="panel" id="demSearchPanel">
@@ -2408,8 +2363,11 @@ function generateElevationDxf(opts) {
     toMm(raster.bbox.east, raster.bbox.south),
     toMm(raster.bbox.west, raster.bbox.south)
   ];
-  const extents = boundsFromPoints(corners.concat(elevPoints.map(p => [p.x, p.y])));
   const textHeight = 1500;
+  const th = textHeight * 0.7;
+  const cornerDirs = [1, 1, -1, -1]; /* NW↑ NE↑ SE↓ SW↓ */
+  const labelPts = corners.map(([cx, cy], i) => [cx, cy + cornerDirs[i] * th * 3]);
+  const extents = boundsFromPoints(corners.concat(elevPoints.map(p => [p.x, p.y])).concat(labelPts));
 
   return buildDxf({
     layers: [
@@ -2446,6 +2404,21 @@ function generateElevationDxf(opts) {
         const a = corners[i];
         const b = corners[(i + 1) % 4];
         writer.line('FRAME', a[0], a[1], b[0], b[1]);
+      }
+
+      /* FRAMEの4隅に経緯度ラベルを追記（座標確認用） */
+      const bboxCoords = [
+        { lon: raster.bbox.west,  lat: raster.bbox.north }, /* NW */
+        { lon: raster.bbox.east,  lat: raster.bbox.north }, /* NE */
+        { lon: raster.bbox.east,  lat: raster.bbox.south }, /* SE */
+        { lon: raster.bbox.west,  lat: raster.bbox.south }, /* SW */
+      ];
+      for (let i = 0; i < 4; i++) {
+        const [cx, cy] = corners[i];
+        const { lon, lat } = bboxCoords[i];
+        const yOff = cornerDirs[i];
+        writer.text('FRAME', cx, cy + yOff * th * 1.2, th, `lat:${lat.toFixed(6)}`, 1, 2);
+        writer.text('FRAME', cx, cy + yOff * th * 2.5, th, `lon:${lon.toFixed(6)}`, 1, 2);
       }
 
       for (const p of elevPoints) {
@@ -2544,7 +2517,7 @@ function buildDxf({ layers, extents, entities }) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 /* -------------------- DEM file range picker -------------------- */
-var _demFileMap = null, _demFileExtentRect = null, _demFileSelectionRect = null;
+var _demFileMap = null, _demFileExtentRect = null, _demFileSelectionRect = null, _demFileViewCornerDivs = null;
 
 function _readCurrentElevBbox() {
   try { return readBboxInputs(); } catch { return null; }
@@ -2566,6 +2539,38 @@ function _setElevBboxInputs(bbox) {
   document.getElementById('bboxEast').value = bbox.east.toFixed(6);
   document.getElementById('bboxSouth').value = bbox.south.toFixed(6);
   document.getElementById('bboxNorth').value = bbox.north.toFixed(6);
+}
+
+function _updateDemFileViewCorners() {
+  if (!_demFileMap) return;
+  var mapEl = document.getElementById('demFileMapEl');
+  if (!_demFileViewCornerDivs) {
+    var style = 'position:absolute;z-index:500;pointer-events:none;' +
+      'background:rgba(0,0,0,.82);color:#f6ad55;font-size:13px;font-family:monospace;' +
+      'padding:5px 9px;border-radius:4px;white-space:nowrap;line-height:1.6;' +
+      'border:1px solid rgba(246,173,85,.6);';
+    _demFileViewCornerDivs = [
+      /* NW: ズームボタンを避けて右にずらす */
+      Object.assign(document.createElement('div'), { style: style + 'top:8px;left:52px;' }),
+      /* NE */
+      Object.assign(document.createElement('div'), { style: style + 'top:8px;right:8px;' }),
+      /* SE */
+      Object.assign(document.createElement('div'), { style: style + 'bottom:8px;right:8px;' }),
+      /* SW */
+      Object.assign(document.createElement('div'), { style: style + 'bottom:8px;left:8px;' }),
+    ];
+    _demFileViewCornerDivs.forEach(function(d) { mapEl.appendChild(d); });
+  }
+  var b = _demFileMap.getBounds();
+  var corners = [
+    { lat: b.getNorth(), lng: b.getWest() },
+    { lat: b.getNorth(), lng: b.getEast() },
+    { lat: b.getSouth(), lng: b.getEast() },
+    { lat: b.getSouth(), lng: b.getWest() },
+  ];
+  corners.forEach(function(c, i) {
+    _demFileViewCornerDivs[i].innerHTML = 'lat:' + c.lat.toFixed(6) + '<br>lon:' + c.lng.toFixed(6);
+  });
 }
 
 function _updateDemFileMapRects() {
@@ -2603,6 +2608,7 @@ window.ensureDemFileRangeMap = function() {
       attribution: 'GSI',
       maxZoom: 18
     }).addTo(_demFileMap);
+    _demFileMap.on('moveend zoomend', _updateDemFileViewCorners);
   }
   _updateDemFileMapRects();
   var bounds = L.latLngBounds(
@@ -2610,7 +2616,7 @@ window.ensureDemFileRangeMap = function() {
     [demFileExtent.north, demFileExtent.east]
   );
   _demFileMap.fitBounds(bounds.pad(0.15));
-  setTimeout(function() { _demFileMap.invalidateSize(); }, 80);
+  setTimeout(function() { _demFileMap.invalidateSize(); _updateDemFileViewCorners(); }, 80);
 };
 
 window.updateDemFileRangeUi = function() {
