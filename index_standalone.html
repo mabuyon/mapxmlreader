@@ -305,6 +305,17 @@ input[type="file"] { display: none; }
   white-space: pre-wrap;
   word-break: break-word;
 }
+.dem-mesh-tip {
+  background: rgba(0,0,0,.82) !important;
+  border: 1px solid rgba(104,211,145,.6) !important;
+  color: #68d391 !important;
+  font-family: monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 3px 7px !important;
+  box-shadow: none !important;
+}
+.dem-mesh-tip::before, .dem-mesh-tip::after { display: none !important; }
 @media (max-width: 920px) {
   .panel-grid { grid-template-columns: 1fr; }
 }
@@ -1944,6 +1955,7 @@ const demResetExtentBtn = document.getElementById('demResetExtentBtn');
 const demRangeInfo = document.getElementById('demRangeInfo');
 
 let demFileExtent = null;
+let demFileMeshExtents = []; // 各XMLファイルのメッシュ範囲
 
 async function setDemFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
@@ -1983,26 +1995,26 @@ async function setDemFile(file) {
   }
 }
 
-/* FG-GMLメッシュコードをエントリ名から解析して2次メッシュ全体範囲を返す（展開不要・高速）
-   エントリ名例: FG-GML-5438-44-00-DEM1A-20250822.xml
-   JIS X 0410 公式計算: row=4桁目の上1桁, col=4桁目の下1桁 (0始まり) */
-function _getDemExtentFromEntryNames(xmlEntries) {
-  for (const entry of xmlEntries) {
-    const m = (entry.name || '').match(/FG-GML-(\d{4})-(\d{2})-/i);
-    if (!m) continue;
-    const latBand = parseInt(m[1].slice(0, 2), 10); // e.g. 54
-    const lonBand = parseInt(m[1].slice(2, 4), 10); // e.g. 38
-    const meshRow = parseInt(m[2][0], 10);           // e.g. 4
-    const meshCol = parseInt(m[2][1], 10);           // e.g. 4
-    if ([latBand, lonBand, meshRow, meshCol].some(isNaN)) continue;
-    return {
-      south: latBand * 2 / 3 + meshRow / 12,
-      north: latBand * 2 / 3 + (meshRow + 1) / 12,
-      west:  lonBand + 100 + meshCol / 8,
-      east:  lonBand + 100 + (meshCol + 1) / 8
-    };
+/* GML XML テキストから bbox を高速抽出（全グリッド解析不要） */
+function _parseDemBboxFromText(xmlText, entryName) {
+  const lcM = xmlText.match(/<gml:lowerCorner>\s*([\d.]+)\s+([\d.]+)/);
+  const ucM = xmlText.match(/<gml:upperCorner>\s*([\d.]+)\s+([\d.]+)/);
+  if (!lcM || !ucM) return null;
+  return {
+    name: (entryName || '').replace(/^.*[\\/]/, ''),
+    south: parseFloat(lcM[1]), west: parseFloat(lcM[2]),
+    north: parseFloat(ucM[1]), east: parseFloat(ucM[2])
+  };
+}
+
+/* 後方互換: 全体範囲を extents 配列から計算 */
+function _unionExtents(extents) {
+  let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
+  for (const e of extents) {
+    west = Math.min(west, e.west); east = Math.max(east, e.east);
+    south = Math.min(south, e.south); north = Math.max(north, e.north);
   }
-  return null;
+  return isFinite(west) ? { west, east, south, north } : null;
 }
 
 const _baseSetDemFile = setDemFile;
@@ -2012,20 +2024,26 @@ setDemFile = async function(file) {
   if (demFileRaster && demFileRaster._file) {
     try {
       let fullExtent = null;
+      demFileMeshExtents = [];
+      const infoEl = document.getElementById('demFileInfo');
       if (file.name.toLowerCase().endsWith('.zip') && typeof JSZip !== 'undefined') {
-        /* ZIPの場合: エントリ名のメッシュコードから全体範囲を計算（展開なし） */
+        /* ZIPの場合: 各XMLのGMLヘッダーからbboxを直接読み取る */
         const zip = await JSZip.loadAsync(await file.arrayBuffer());
         const xmlEntries = Object.values(zip.files).filter(f => !f.dir && f.name.toLowerCase().endsWith('.xml'));
-        fullExtent = _getDemExtentFromEntryNames(xmlEntries);
-        if (!fullExtent && xmlEntries.length) {
-          /* フォールバック: 最初のXMLを解析 */
-          const grid = parseDemGml(await xmlEntries[0].async('string'));
-          if (grid) fullExtent = { west: grid.west, east: grid.east, south: grid.south, north: grid.north };
+        for (let i = 0; i < xmlEntries.length; i++) {
+          if (infoEl) { infoEl.style.display = 'block'; infoEl.textContent = `範囲読込中 ${i + 1} / ${xmlEntries.length} ...`; }
+          await new Promise(r => setTimeout(r, 0)); /* UI更新 */
+          const xmlText = await xmlEntries[i].async('string');
+          const ext = _parseDemBboxFromText(xmlText, xmlEntries[i].name);
+          if (ext) demFileMeshExtents.push(ext);
         }
+        if (infoEl) infoEl.style.display = 'none';
+        fullExtent = _unionExtents(demFileMeshExtents);
       } else {
         /* 単一XMLファイル */
-        const grid = parseDemGml(await readXmlTextFromFile(file));
-        if (grid) fullExtent = { west: grid.west, east: grid.east, south: grid.south, north: grid.north };
+        const xmlText = await readXmlTextFromFile(file);
+        const ext = _parseDemBboxFromText(xmlText, file.name);
+        if (ext) { demFileMeshExtents = [ext]; fullExtent = { west: ext.west, east: ext.east, south: ext.south, north: ext.north }; }
       }
       if (fullExtent) {
         demFileExtent = fullExtent;
@@ -2048,7 +2066,7 @@ demFileDrop.addEventListener('dragleave', () => demFileDrop.classList.remove('dr
 demFileDrop.addEventListener('drop', e => { e.preventDefault(); demFileDrop.classList.remove('drag-over'); if (e.dataTransfer.files[0]) setDemFile(e.dataTransfer.files[0]); });
 demFileInput.addEventListener('change', () => { if (demFileInput.files[0]) setDemFile(demFileInput.files[0]); });
 demFileRemove.addEventListener('click', () => {
-  demFileRaster = null; demFileExtent = null; demFileBadge.style.display = 'none'; demFileInput.value = ''; demFileInfo.style.display = 'none';
+  demFileRaster = null; demFileExtent = null; demFileMeshExtents = []; demFileBadge.style.display = 'none'; demFileInput.value = ''; demFileInfo.style.display = 'none';
   if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
 });
 
@@ -2517,7 +2535,7 @@ function buildDxf({ layers, extents, entities }) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 /* -------------------- DEM file range picker -------------------- */
-var _demFileMap = null, _demFileExtentRect = null, _demFileSelectionRect = null, _demFileViewCornerDivs = null;
+var _demFileMap = null, _demFileExtentRect = null, _demFileSelectionRect = null, _demFileViewCornerDivs = null, _demFileMeshRects = [];
 
 function _readCurrentElevBbox() {
   try { return readBboxInputs(); } catch { return null; }
@@ -2575,6 +2593,24 @@ function _updateDemFileViewCorners() {
 
 function _updateDemFileMapRects() {
   if (!_demFileMap || !demFileExtent) return;
+
+  /* 個別XMLメッシュ矩形を再描画 */
+  _demFileMeshRects.forEach(function(r) { _demFileMap.removeLayer(r); });
+  _demFileMeshRects = [];
+  demFileMeshExtents.forEach(function(ext) {
+    var r = L.rectangle(
+      [[ext.south, ext.west], [ext.north, ext.east]],
+      { color: '#68d391', weight: 2, fill: false, dashArray: '6,4' }
+    );
+    /* ファイル名からメッシュコード部分を短縮ラベルに (例: 5438-44-00) */
+    var m = ext.name.match(/FG-GML-([\d]+-[\d]+-[\d]+)/i) || ext.name.match(/FG-GML-([\d]+-[\d]+)/i);
+    var label = m ? m[1] : ext.name.replace(/\.xml$/i, '');
+    r.bindTooltip(label, { permanent: true, direction: 'center', className: 'dem-mesh-tip' });
+    r.addTo(_demFileMap);
+    _demFileMeshRects.push(r);
+  });
+  _updateMeshLabelVisibility();
+
   var extentBounds = [[demFileExtent.south, demFileExtent.west], [demFileExtent.north, demFileExtent.east]];
   if (!_demFileExtentRect) {
     _demFileExtentRect = L.rectangle(extentBounds, {
@@ -2600,6 +2636,15 @@ function _updateDemFileMapRects() {
   }
 }
 
+/* ズームレベルに応じてメッシュラベル表示を切替（12以上で表示） */
+function _updateMeshLabelVisibility() {
+  if (!_demFileMap) return;
+  var show = _demFileMap.getZoom() >= 12;
+  _demFileMeshRects.forEach(function(r) {
+    if (show) { r.openTooltip(); } else { r.closeTooltip(); }
+  });
+}
+
 window.ensureDemFileRangeMap = function() {
   if (!demFileExtent) return;
   if (!_demFileMap) {
@@ -2608,7 +2653,10 @@ window.ensureDemFileRangeMap = function() {
       attribution: 'GSI',
       maxZoom: 18
     }).addTo(_demFileMap);
-    _demFileMap.on('moveend zoomend', _updateDemFileViewCorners);
+    _demFileMap.on('moveend zoomend', function() {
+      _updateDemFileViewCorners();
+      _updateMeshLabelVisibility();
+    });
   }
   _updateDemFileMapRects();
   var bounds = L.latLngBounds(
@@ -2616,7 +2664,7 @@ window.ensureDemFileRangeMap = function() {
     [demFileExtent.north, demFileExtent.east]
   );
   _demFileMap.fitBounds(bounds.pad(0.15));
-  setTimeout(function() { _demFileMap.invalidateSize(); _updateDemFileViewCorners(); }, 80);
+  setTimeout(function() { _demFileMap.invalidateSize(); _updateDemFileViewCorners(); _updateMeshLabelVisibility(); }, 80);
 };
 
 window.updateDemFileRangeUi = function() {
