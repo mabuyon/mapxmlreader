@@ -376,6 +376,7 @@ input[type="file"] { display: none; }
     <button class="tab-btn" data-tab="elevPanel">② 標高データ → DXF</button>
     <button class="tab-btn" data-tab="demSearchPanel">③ DEM 検索</button>
     <button class="tab-btn" data-tab="coordTxtPanel">④ 座標TXT → DXF</button>
+    <button class="tab-btn" data-tab="chibanPanel">⑤ 地番検索</button>
   </div>
 
   <div class="content">
@@ -778,6 +779,61 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           </div>
         </aside>
       </div>
+    </section>
+    <section class="panel" id="chibanPanel">
+      <div style="display:flex;flex-wrap:wrap;gap:20px">
+        <div style="flex:1;min-width:300px">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input id="chibanAddrInput" type="text" placeholder="住所・地名を入力（例: 稚内市中央）"
+              style="flex:1;min-height:40px;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.95rem">
+            <button class="btn" id="chibanAddrBtn" type="button">検索</button>
+          </div>
+          <div id="chibanMapEl" style="height:520px;border-radius:12px;border:1px solid var(--line);background:#0d1420"></div>
+          <div id="chibanCoordBar" style="margin-top:8px;padding:8px 14px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid var(--line);font-size:.82rem;color:var(--muted);font-family:monospace;letter-spacing:.03em">
+            地図上にカーソルを置くと座標が表示されます
+          </div>
+          <div class="message warn" id="chibanAddrWarn" style="display:none"></div>
+        </div>
+        <div style="width:280px;min-width:240px;display:grid;gap:14px;align-content:start">
+          <div class="section">
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>
+            地図上で目的の土地の<b>地番</b>を確認します。国土地理院の「地番参考図」をオーバーレイ表示することで、ズームインするだけで地番番号が読み取れます。</p>
+            <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
+              <li>住所・地名を入力して「検索」</li>
+              <li>地図をズームイン（Z16以上で地番番号が表示）</li>
+              <li>地番参考図の区画と番号を確認</li>
+              <li>地図をクリックすると地点情報・外部リンクを表示</li>
+            </ol>
+            <p class="hint" style="margin-top:6px">カーソルを動かすだけで座標が下欄にリアルタイム表示されます。</p>
+          </div>
+          <div class="section">
+            <h2>表示設定</h2>
+            <div class="field" style="margin-bottom:12px">
+              <label for="chibanOpacity">地番参考図の透明度</label>
+              <input type="range" id="chibanOpacity" min="0" max="100" value="70"
+                style="width:100%;margin-top:4px;accent-color:var(--primary-2)">
+            </div>
+            <label class="check">
+              <input type="checkbox" id="chibanShowAerial"> 航空写真を背景に使用
+            </label>
+          </div>
+          <div class="section">
+            <h2>クリック情報</h2>
+            <div id="chibanClickInfo"><p class="hint">地図をクリックすると地点情報が表示されます</p></div>
+          </div>
+          <div class="section">
+            <h2>ご注意</h2>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.2">
+              <li>地番参考図は参考用であり法的効力はありません</li>
+              <li>正確な地番は登記情報提供サービスまたは登記所備付地図でご確認ください</li>
+              <li>提供エリアは地域によって異なります</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="status-bar sb-hint" id="chibanStatusBar" style="margin-top:16px">住所を検索するか、地図をズームインして地番参考図をご確認ください</div>
     </section>
   </div>
 </div>
@@ -3337,8 +3393,157 @@ document.getElementById('demAutoDownloadBtn').addEventListener('click', async fu
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
     if (btn.dataset.tab === 'demSearchPanel') setTimeout(_initDemMap, 120);
+    if (btn.dataset.tab === 'chibanPanel') setTimeout(_initChibanMap, 120);
   });
 });
+
+/* -------------------- ⑤ 地番検索 -------------------- */
+var _chibanMap = null;
+var _chibanLayerBase = null;
+var _chibanLayerAerial = null;
+var _chibanLayerChiban = null;
+var _chibanMarker = null;
+
+function _initChibanMap() {
+  if (_chibanMap) { _chibanMap.invalidateSize(); return; }
+  var el = document.getElementById('chibanMapEl');
+  if (!el) return;
+
+  _chibanMap = L.map(el, { zoomControl: true }).setView([35.6812, 139.7671], 16);
+
+  _chibanLayerBase = L.tileLayer(
+    'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
+    { attribution: '© <a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>', maxZoom: 18 }
+  ).addTo(_chibanMap);
+
+  _chibanLayerAerial = L.tileLayer(
+    'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+    { attribution: '© 国土地理院', maxZoom: 18 }
+  );
+
+  /* 地番参考図オーバーレイ */
+  _chibanLayerChiban = L.tileLayer(
+    'https://cyberjapandata.gsi.go.jp/xyz/chiban/{z}/{x}/{y}.png',
+    { attribution: '© 法務省・国土地理院', maxZoom: 18, opacity: 0.7 }
+  ).addTo(_chibanMap);
+
+  /* 透明度スライダー */
+  document.getElementById('chibanOpacity').addEventListener('input', function() {
+    if (_chibanLayerChiban) _chibanLayerChiban.setOpacity(this.value / 100);
+  });
+
+  /* 航空写真トグル */
+  document.getElementById('chibanShowAerial').addEventListener('change', function() {
+    if (this.checked) {
+      _chibanLayerBase.remove();
+      _chibanLayerAerial.addTo(_chibanMap);
+      _chibanLayerAerial.bringToBack();
+    } else {
+      _chibanLayerAerial.remove();
+      _chibanLayerBase.addTo(_chibanMap);
+      _chibanLayerBase.bringToBack();
+    }
+    _chibanLayerChiban.bringToFront();
+  });
+
+  /* カーソル座標リアルタイム表示 */
+  _chibanMap.on('mousemove', function(e) {
+    var bar = document.getElementById('chibanCoordBar');
+    if (bar) bar.textContent =
+      'lat: ' + e.latlng.lat.toFixed(6) + '   lon: ' + e.latlng.lng.toFixed(6);
+  });
+  _chibanMap.on('mouseout', function() {
+    var bar = document.getElementById('chibanCoordBar');
+    if (bar) bar.textContent = '地図上にカーソルを置くと座標が表示されます';
+  });
+
+  /* クリック → リバースジオコーディング */
+  _chibanMap.on('click', function(e) {
+    var lat = e.latlng.lat, lon = e.latlng.lng;
+    if (_chibanMarker) { _chibanMarker.setLatLng(e.latlng); }
+    else { _chibanMarker = L.marker(e.latlng).addTo(_chibanMap); }
+
+    var info = document.getElementById('chibanClickInfo');
+    info.innerHTML = '<p class="hint">住所情報を取得中...</p>';
+    setStatus('chibanStatusBar', 'sb-work', '住所情報を取得中...');
+
+    fetch('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=' + lat + '&lon=' + lon)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var r = (data && data.results) ? data.results : {};
+        var parts = [r.lv01Nm, r.lv02Nm, r.lv03Nm, r.lv04Nm, r.lv05Nm].filter(Boolean);
+        var addr = parts.join('');
+        var zoom = _chibanMap.getZoom();
+        var gsiUrl = 'https://maps.gsi.go.jp/#' + zoom + '/' +
+          lat.toFixed(5) + '/' + lon.toFixed(5) +
+          '/&base=std&ls=chiban&disp=1&vs=c1g1j0h0k0l0u0t0z0r0s0m0f0';
+        var mojFreeUrl = 'https://front.geospatial.jp/moj-chizu-xml-search/';
+        var mojPaidUrl = 'https://www.touki-kyoutaku-online.moj.go.jp/';
+
+        info.innerHTML =
+          '<div style="margin-bottom:10px">' +
+            '<p class="hint"><b>緯度:</b> ' + lat.toFixed(6) + '</p>' +
+            '<p class="hint"><b>経度:</b> ' + lon.toFixed(6) + '</p>' +
+            (addr ? '<p class="hint" style="margin-top:6px"><b>住所参考:</b><br>' + addr + '</p>' : '') +
+          '</div>' +
+          '<div style="display:grid;gap:6px">' +
+            '<a href="' + gsiUrl + '" target="_blank" class="btn" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">地理院地図で地番参考図を確認</a>' +
+            '<a href="' + mojFreeUrl + '" target="_blank" class="btn secondary" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">登記所備付地図データ（無料）</a>' +
+            '<a href="' + mojPaidUrl + '" target="_blank" class="btn secondary" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">登記情報提供サービス（有料）</a>' +
+          '</div>';
+        setStatus('chibanStatusBar', 'sb-ok',
+          addr ? addr + ' — 地番は地番参考図の番号をご確認ください' : '地番参考図の番号をご確認ください（Z16以上で表示）');
+      })
+      .catch(function() {
+        info.innerHTML =
+          '<p class="hint"><b>緯度:</b> ' + lat.toFixed(6) + '</p>' +
+          '<p class="hint"><b>経度:</b> ' + lon.toFixed(6) + '</p>' +
+          '<p class="hint" style="margin-top:6px;color:var(--bad)">住所取得に失敗しました</p>';
+        setStatus('chibanStatusBar', 'sb-hint', '地番参考図をズームインして確認してください');
+      });
+  });
+
+  /* ズームレベルに応じたヒント */
+  _chibanMap.on('zoomend', function() {
+    var z = _chibanMap.getZoom();
+    if (z < 13) {
+      setStatus('chibanStatusBar', 'sb-hint', 'ズームインすると地番参考図が表示されます（目安：Z13以上で区画、Z16以上で地番番号）');
+    } else if (z < 16) {
+      setStatus('chibanStatusBar', 'sb-hint', 'もう少しズームインすると地番番号が表示されます（現在 Z' + z + ' / Z16以上推奨）');
+    } else {
+      setStatus('chibanStatusBar', 'sb-ok', '地番参考図を表示中（Z' + z + '）。地図上の番号で地番を確認できます');
+    }
+  });
+
+  setTimeout(function() { _chibanMap.invalidateSize(); }, 150);
+}
+
+/* 住所検索 */
+document.getElementById('chibanAddrBtn').addEventListener('click', _searchChibanAddr);
+document.getElementById('chibanAddrInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') _searchChibanAddr();
+});
+
+async function _searchChibanAddr() {
+  var q = document.getElementById('chibanAddrInput').value.trim();
+  var warn = document.getElementById('chibanAddrWarn');
+  warn.style.display = 'none';
+  if (!q) return;
+  setStatus('chibanStatusBar', 'sb-work', '住所を検索中...');
+  try {
+    var res = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+    var data = await res.json();
+    if (!data || !data.length) throw new Error('住所が見つかりませんでした');
+    var coords = data[0].geometry.coordinates;
+    _initChibanMap();
+    _chibanMap.setView([coords[1], coords[0]], 17);
+    setStatus('chibanStatusBar', 'sb-ok', '地図を移動しました。地番参考図の番号をご確認ください');
+  } catch (err) {
+    warn.textContent = err.message;
+    warn.style.display = 'block';
+    setStatus('chibanStatusBar', 'sb-err', '住所が見つかりませんでした。別の地名で試してください');
+  }
+}
 </script>
 </body>
 </html>
