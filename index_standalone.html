@@ -824,11 +824,18 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
             <div id="chibanClickInfo"><p class="hint">地図をクリックすると地点情報が表示されます</p></div>
           </div>
           <div class="section">
+            <h2>地図の種類</h2>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.2">
+              <li><b>地番参考図（本ページ）</b>：国土地理院提供。Z16以上で地番番号が表示。参考用。</li>
+              <li><b>登記所備付地図ビューア</b>：法務省データを使った公式ビューア。より正確な地番境界・番号を確認可能。地図クリック後のボタンから現在地点で開けます。</li>
+            </ul>
+          </div>
+          <div class="section">
             <h2>ご注意</h2>
             <ul class="hint" style="padding-left:1.4em;line-height:2.2">
-              <li>地番参考図は参考用であり法的効力はありません</li>
-              <li>正確な地番は登記情報提供サービスまたは登記所備付地図でご確認ください</li>
-              <li>提供エリアは地域によって異なります</li>
+              <li>地番参考図は法的効力はありません</li>
+              <li>正確な地番は登記情報提供サービスまたは登記所備付地図ビューアでご確認ください</li>
+              <li>住所参考は概略であり丁目・番地の詳細は表示されません</li>
             </ul>
           </div>
         </div>
@@ -3467,38 +3474,49 @@ function _initChibanMap() {
     info.innerHTML = '<p class="hint">住所情報を取得中...</p>';
     setStatus('chibanStatusBar', 'sb-work', '住所情報を取得中...');
 
-    fetch('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=' + lat + '&lon=' + lon)
+    /* HeartRails GeoAPI: 郵便番号付き完全住所 */
+    fetch('https://geoapi.heartrails.com/api/json?method=searchByGeoLocation&x=' + lon.toFixed(6) + '&y=' + lat.toFixed(6))
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        var r = (data && data.results) ? data.results : {};
-        var parts = [r.lv01Nm, r.lv02Nm, r.lv03Nm, r.lv04Nm, r.lv05Nm].filter(Boolean);
-        var addr = parts.join('');
+        var loc = (data && data.response && data.response.location && data.response.location[0]) || {};
+        var postal = loc.postal ? '〒' + loc.postal.slice(0, 3) + '-' + loc.postal.slice(3) : '';
+        var addr = [loc.prefecture, loc.city, loc.town].filter(Boolean).join('');
+        var fullAddr = (postal ? postal + '　' : '') + addr;
+
         var zoom = _chibanMap.getZoom();
+        /* BizXaaS MaP 登記所備付地図ビューア（クリック地点で開く） */
+        var bizUrl = 'https://chiban-regi.rmp.glbs.jp/chiban-viewer/#' +
+          zoom + '/' + lat.toFixed(5) + '/' + lon.toFixed(5);
         var gsiUrl = 'https://maps.gsi.go.jp/#' + zoom + '/' +
           lat.toFixed(5) + '/' + lon.toFixed(5) +
           '/&base=std&ls=chiban&disp=1&vs=c1g1j0h0k0l0u0t0z0r0s0m0f0';
-        var mojFreeUrl = 'https://www.moj.go.jp/MINJI/minji05_00494.html';
         var mojPaidUrl = 'https://www.touki-kyoutaku-online.moj.go.jp/';
 
         info.innerHTML =
-          '<div style="margin-bottom:10px">' +
-            '<p class="hint"><b>緯度:</b> ' + lat.toFixed(6) + '</p>' +
-            '<p class="hint"><b>経度:</b> ' + lon.toFixed(6) + '</p>' +
-            (addr ? '<p class="hint" style="margin-top:6px"><b>住所参考:</b><br>' + addr + '</p>' : '') +
+          '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)">' +
+            (fullAddr
+              ? '<p class="hint" style="font-size:.9rem;color:var(--text);line-height:1.8">' + escapeHtml(fullAddr) + '</p>'
+              : '<p class="hint">住所情報なし</p>') +
           '</div>' +
+          '<p class="hint" style="margin-bottom:8px;font-family:monospace;font-size:.78rem">' +
+            'lat: ' + lat.toFixed(6) + '<br>lon: ' + lon.toFixed(6) + '</p>' +
           '<div style="display:grid;gap:6px">' +
-            '<a href="' + gsiUrl + '" target="_blank" class="btn" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">地理院地図で地番参考図を確認</a>' +
-            '<a href="' + mojFreeUrl + '" target="_blank" class="btn secondary" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">登記所備付地図データ（無料）</a>' +
+            '<a href="' + bizUrl + '" target="_blank" class="btn" style="font-size:.82rem;min-height:38px;text-decoration:none;text-align:center;line-height:1.3">登記所備付地図ビューアで<br>地番を確認（この地点）</a>' +
+            '<a href="' + gsiUrl + '" target="_blank" class="btn secondary" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">地理院地図で地番参考図を確認</a>' +
             '<a href="' + mojPaidUrl + '" target="_blank" class="btn secondary" style="font-size:.82rem;min-height:36px;text-decoration:none;text-align:center">登記情報提供サービス（有料）</a>' +
           '</div>';
         setStatus('chibanStatusBar', 'sb-ok',
-          addr ? addr + ' — 地番は地番参考図の番号をご確認ください' : '地番参考図の番号をご確認ください（Z16以上で表示）');
+          fullAddr ? fullAddr + ' — 地番は地番参考図または登記所備付地図ビューアで確認' : '地番参考図の番号をご確認ください（Z16以上で表示）');
       })
       .catch(function() {
+        var zoom = _chibanMap.getZoom();
+        var bizUrl = 'https://chiban-regi.rmp.glbs.jp/chiban-viewer/#' +
+          zoom + '/' + lat.toFixed(5) + '/' + lon.toFixed(5);
         info.innerHTML =
-          '<p class="hint"><b>緯度:</b> ' + lat.toFixed(6) + '</p>' +
-          '<p class="hint"><b>経度:</b> ' + lon.toFixed(6) + '</p>' +
-          '<p class="hint" style="margin-top:6px;color:var(--bad)">住所取得に失敗しました</p>';
+          '<p class="hint" style="margin-bottom:8px;font-family:monospace;font-size:.78rem">' +
+            'lat: ' + lat.toFixed(6) + '<br>lon: ' + lon.toFixed(6) + '</p>' +
+          '<p class="hint" style="margin-bottom:8px;color:var(--bad)">住所取得に失敗しました</p>' +
+          '<a href="' + bizUrl + '" target="_blank" class="btn" style="font-size:.82rem;min-height:38px;text-decoration:none;text-align:center;line-height:1.3">登記所備付地図ビューアで<br>地番を確認（この地点）</a>';
         setStatus('chibanStatusBar', 'sb-hint', '地番参考図をズームインして確認してください');
       });
   });
