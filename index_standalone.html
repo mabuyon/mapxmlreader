@@ -378,17 +378,18 @@ input[type="file"] { display: none; }
 
         <aside>
           <div class="section">
-            <h2>この機能について</h2>
-            <p class="hint">法務省が公開している<b>地籍図XML</b>（不動産登記の地図データ）を、JW-CAD / JWW で読み込める <b>DXF R12</b> 形式に変換します。ブラウザ内で完結するため、インターネット接続は不要です。</p>
-          </div>
-          <div class="section">
-            <h2>入力ファイルの入手方法</h2>
-            <ol class="hint" style="padding-left:1.4em;line-height:2.2">
-              <li>法務省「登記所備付地図データ」サイトにアクセス</li>
-              <li>地域・地番を指定してXMLまたはZIPをダウンロード</li>
-              <li>このツールにドロップ → DXF変換</li>
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>
+            法務省が公開している<b>地籍図XML</b>（不動産登記の地図データ）を、JW-CAD / JWW で読み込める <b>DXF R12</b> 形式に変換します。土地の境界線・地番・筆界点などをCADデータとして利用したいときに使います。インターネット接続は不要です。</p>
+            <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
+              <li>法務省「登記所備付地図データ」サイトで対象地域のXMLまたはZIPをダウンロード</li>
+              <li>左のドロップゾーンにファイルをドラッグ＆ドロップ（またはクリックして選択）</li>
+              <li>「DXF変換」ボタンをクリック</li>
+              <li>変換完了後、DXFファイルが自動ダウンロードされます</li>
+              <li>JW-CADで開いて確認・編集</li>
             </ol>
-            <p class="hint" style="margin-top:6px">ZIP形式の場合は内部の XML を自動抽出します。複数XMLが含まれていても対応します。</p>
+            <p class="hint" style="margin-top:6px">ZIP形式の場合は内部の XML を自動抽出します。複数XML入りのZIPにも対応します。</p>
           </div>
           <div class="section">
             <h2>出力レイヤー</h2>
@@ -492,13 +493,25 @@ input[type="file"] { display: none; }
 
         <aside>
           <div class="section">
-            <h2>この機能について</h2>
-            <p class="hint">国土地理院の<b>標高データ</b>から等高線・標高点を含む DXF ファイルを生成します。地形図の作成や造成計画の基図として利用できます。</p>
-            <p class="hint" style="margin-top:6px">データソースは <b>2種類</b> から選択できます。</p>
-            <ul class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:4px">
-              <li><b>地理院タイルAPI</b>：ネット経由でリアルタイム取得。手軽に使える。</li>
-              <li><b>基盤地図情報DEMファイル</b>：ZIP をアップロードしてオフライン変換。1m メッシュ等の高精度データに対応。</li>
-            </ul>
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>
+            国土地理院の<b>標高データ</b>をもとに、等高線（計曲線・主等高線）と標高点を含む DXF ファイルを生成します。地形図の作成・造成計画の基図・切土盛土の検討などに使います。</p>
+            <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
+            <p class="hint" style="margin-top:4px">データソースを2種類から選んで使用します。</p>
+            <p class="hint" style="margin-top:6px"><b>● 地理院タイルAPI（インターネット必要）</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:2px">
+              <li>「地理院タイルAPI」を選択</li>
+              <li>緯度経度の範囲を入力（または③DEM検索タブから転送）</li>
+              <li>「DL前確認」で取得タイル数・容量を確認</li>
+              <li>等高線間隔などを設定し「標高DXFを作成」をクリック</li>
+            </ol>
+            <p class="hint" style="margin-top:8px"><b>● 基盤地図情報DEMファイル（オフライン可）</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:2px">
+              <li>「基盤地図情報DEMファイル」を選択</li>
+              <li>③DEM検索タブで入手した ZIP をドロップ</li>
+              <li>範囲地図で変換範囲を確認・調整</li>
+              <li>等高線間隔などを設定し「標高DXFを作成」をクリック</li>
+            </ol>
           </div>
           <div class="section">
             <h2>出力レイヤー</h2>
@@ -594,9 +607,20 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
         </div>
         <div style="width:260px;min-width:220px;display:grid;gap:14px;align-content:start">
           <div class="section">
-            <h2>このタブの目的</h2>
-            <p class="hint"><b>標高タブ</b>の「基盤地図情報DEMファイル」変換に使用する ZIP ファイルを特定・入手するためのタブです。</p>
-            <p class="hint" style="margin-top:6px">国土地理院が公開している数値標高モデル（DEM）は <b>2次メッシュ</b>（約 10km 四方）単位で ZIP 配布されています。変換したい地域のメッシュを地図上で選択し、ダウンロードサービスへ誘導します。</p>
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>
+            ②標高タブの「基盤地図情報DEMファイル」で使用する ZIP ファイルを特定・入手するためのタブです。国土地理院の数値標高モデル（DEM）は <b>2次メッシュ</b>（約10km 四方）単位で ZIP 配布されており、変換したい地域のメッシュを地図上で選んでダウンロードサービスに誘導します。</p>
+            <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
+              <li>「住所・地名」に対象地域を入力して「検索」</li>
+              <li>DEM種別（1A/5A/5B/5C）を選択</li>
+              <li>地図をズームイン（ズーム9以上）するとメッシュ枠が表示される</li>
+              <li>目的のメッシュをクリックして選択（青色表示）</li>
+              <li>「基盤地図情報サービスを開く」でダウンロードサービスへ</li>
+              <li>ログイン後に対象メッシュの ZIP をダウンロード</li>
+              <li>②標高タブに ZIP をドロップして等高線DXFを作成</li>
+            </ol>
+            <p class="hint" style="margin-top:6px">※ダウンロードには <b>service.gsi.go.jp</b> への無償ユーザー登録が必要です。</p>
           </div>
           <div class="section">
             <h2>住所検索</h2>
@@ -636,23 +660,11 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           <div class="section">
             <h2>DEM種別の選び方</h2>
             <ul class="hint" style="padding-left:1.4em;line-height:2.2">
-              <li><b>DEM1A</b>：1m精度・航空レーザー測量。精度最高だが提供エリア限定。</li>
-              <li><b>DEM5A</b>：5m精度・航空レーザー測量。広域カバー。</li>
+              <li><b>DEM1A</b>：1m精度・航空レーザー。精度最高だが提供エリア限定。</li>
+              <li><b>DEM5A</b>：5m精度・航空レーザー。広域カバー。</li>
               <li><b>DEM5B</b>：5m精度・写真測量。</li>
               <li><b>DEM5C</b>：5m精度・地形図数値化。古いデータを含む。</li>
             </ul>
-          </div>
-          <div class="section">
-            <h2>ZIP 入手の手順</h2>
-            <ol class="hint" style="padding-left:1.4em;line-height:2.2">
-              <li>住所検索で目的の地域に移動</li>
-              <li>地図上のメッシュ枠をクリックして選択（青色表示）</li>
-              <li>「基盤地図情報サービスを開く」をクリック</li>
-              <li>サービスサイトでログイン後、数値標高モデルを検索</li>
-              <li>該当メッシュの ZIP をダウンロード</li>
-              <li>「標高データ → DXF」タブに ZIP をドロップして変換</li>
-            </ol>
-            <p class="hint" style="margin-top:6px">※ダウンロードには <b>service.gsi.go.jp</b> への無償ユーザー登録が必要です。</p>
           </div>
         </div>
       </div>
@@ -686,9 +698,17 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
         </div>
         <aside>
           <div class="section">
-            <h2>この機能について</h2>
-            <p class="hint">地積測量図に記載されている<b>座標一覧</b>（テキスト形式）を読み込み、JW-CAD で確認・編集できる DXF ファイルに変換します。</p>
-            <p class="hint" style="margin-top:6px">境界点の座標と点名をマーカー＋テキストで配置し、各グループ内の点を順番に折れ線で結びます。筆界確認・境界復元の下図として使用できます。</p>
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>
+            地積測量図に記載されている<b>座標一覧</b>（テキスト形式）を読み込み、JW-CAD で確認・編集できる DXF ファイルに変換します。境界点の座標と点名をマーカー＋テキストで配置し、グループ内の点を折れ線で結びます。筆界確認・境界復元の下図作成に使います。</p>
+            <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
+              <li>地積測量図から座標一覧のテキストファイル（.txt）を用意する</li>
+              <li>左のドロップゾーンにファイルをドラッグ＆ドロップ（またはクリックして選択）</li>
+              <li>「DXF変換」ボタンをクリック</li>
+              <li>変換完了後、DXFファイルが自動ダウンロードされます</li>
+              <li>JW-CADで開いて境界点・境界線を確認・編集</li>
+            </ol>
           </div>
           <div class="section">
             <h2>入力フォーマット</h2>
