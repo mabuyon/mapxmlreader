@@ -503,17 +503,16 @@ DEM10B (dem_png): Z 1-14</div>
       </div>
       <div id="demFileRangeSection" style="display:none;margin-top:18px;border:1px solid var(--line);border-radius:16px;padding:16px 20px;background:var(--panel)">
         <h2 style="font-size:.98rem;margin-bottom:8px">DEMファイル内の変換範囲</h2>
-        <p class="hint" style="margin-bottom:10px">地図を移動・拡大して変換範囲を指定し「現在の表示範囲を使う」を押してください。選択はDEMファイルの範囲内に自動で制限されます。</p>
+        <p class="hint" style="margin-bottom:10px">地図を移動・拡大すると変換範囲が自動更新されます。DEM範囲外を表示しているときはDEMデータの座標に自動で制限されます。</p>
         <div id="demFileMapEl" style="height:480px;border-radius:12px;border:1px solid var(--line);background:#0d1420"></div>
         <div class="btn-row" style="margin-top:12px">
-          <button class="btn secondary" id="demUseViewBtn" type="button">現在の表示範囲を使う</button>
           <button class="btn secondary" id="demResetExtentBtn" type="button">DEM全範囲に戻す</button>
         </div>
         <div class="message warn" id="demRangeInfo" style="display:block;margin-top:10px"></div>
       </div>
 
       <div class="section" style="margin-top:18px">
-        <h2>Step 3. 変換設定と実行</h2>
+        <h2>変換設定と実行</h2>
         <div class="field-grid three">
           <div class="field">
             <label for="contourInterval">主等高線間隔[m]</label>
@@ -1950,7 +1949,6 @@ const demFileInfo   = document.getElementById('demFileInfo');
 const demFileArea   = document.getElementById('demFileArea');
 const tileApiSec    = document.getElementById('tileApiSection');
 const demFileRangeSection = document.getElementById('demFileRangeSection');
-const demUseViewBtn = document.getElementById('demUseViewBtn');
 const demResetExtentBtn = document.getElementById('demResetExtentBtn');
 const demRangeInfo = document.getElementById('demRangeInfo');
 
@@ -2224,7 +2222,8 @@ async function fetchDemRaster(precheck, progressCallback) {
   let minElevation = Infinity;
   let maxElevation = -Infinity;
   for (let i = 0, p = 0; i < data.length; i++, p += 4) {
-    const h = decodeElevation(image.data[p], image.data[p + 1], image.data[p + 2]);
+    /* alpha=0（未描画 or 透過NoData）は 0m に化けるので NaN 扱い */
+    const h = image.data[p + 3] === 0 ? NaN : decodeElevation(image.data[p], image.data[p + 1], image.data[p + 2]);
     data[i] = Number.isFinite(h) ? h : NaN;
     if (Number.isFinite(h)) {
       if (h < minElevation) minElevation = h;
@@ -2591,6 +2590,43 @@ function _updateDemFileViewCorners() {
   });
 }
 
+function _applyMapViewToBbox() {
+  if (!demFileExtent || !_demFileMap) return;
+  var b = _demFileMap.getBounds();
+  var bbox = _clampDemFileBbox({
+    west: b.getWest(), east: b.getEast(),
+    south: b.getSouth(), north: b.getNorth()
+  });
+  if (!bbox) return;
+  _setElevBboxInputs(bbox);
+  /* 選択矩形だけ更新（全メッシュ再描画・invalidateSize は呼ばない） */
+  var current = _clampDemFileBbox(_readCurrentElevBbox());
+  if (current) {
+    var cb = [[current.south, current.west], [current.north, current.east]];
+    if (!_demFileSelectionRect) {
+      _demFileSelectionRect = L.rectangle(cb, {
+        color: '#f6ad55', weight: 2, fillColor: '#f6ad55', fillOpacity: 0.12
+      }).addTo(_demFileMap);
+    } else {
+      _demFileSelectionRect.setBounds(cb);
+    }
+  } else if (_demFileSelectionRect) {
+    _demFileMap.removeLayer(_demFileSelectionRect);
+    _demFileSelectionRect = null;
+  }
+  /* 情報テキストだけ更新 */
+  var info = document.getElementById('demRangeInfo');
+  if (info && demFileExtent) {
+    var em = 'DEM範囲: lon ' + demFileExtent.west.toFixed(6) + ' - ' + demFileExtent.east.toFixed(6) +
+      ' / lat ' + demFileExtent.south.toFixed(6) + ' - ' + demFileExtent.north.toFixed(6);
+    var cm = current
+      ? '現在の変換範囲: lon ' + current.west.toFixed(6) + ' - ' + current.east.toFixed(6) +
+        ' / lat ' + current.south.toFixed(6) + ' - ' + current.north.toFixed(6)
+      : '現在の変換範囲: 未設定';
+    info.textContent = em + ' | ' + cm;
+  }
+}
+
 function _updateDemFileMapRects() {
   if (!_demFileMap || !demFileExtent) return;
 
@@ -2656,6 +2692,7 @@ window.ensureDemFileRangeMap = function() {
     _demFileMap.on('moveend zoomend', function() {
       _updateDemFileViewCorners();
       _updateMeshLabelVisibility();
+      _applyMapViewToBbox();
     });
   }
   _updateDemFileMapRects();
@@ -2665,6 +2702,7 @@ window.ensureDemFileRangeMap = function() {
   );
   _demFileMap.fitBounds(bounds.pad(0.15));
   setTimeout(function() { _demFileMap.invalidateSize(); _updateDemFileViewCorners(); _updateMeshLabelVisibility(); }, 80);
+  setTimeout(function() { _applyMapViewToBbox(); }, 150);
 };
 
 window.updateDemFileRangeUi = function() {
@@ -2690,21 +2728,6 @@ window.updateDemFileRangeUi = function() {
     setTimeout(function() { _demFileMap.invalidateSize(); }, 50);
   }
 };
-
-document.getElementById('demUseViewBtn').addEventListener('click', function() {
-  if (!demFileExtent) return;
-  if (!_demFileMap) window.ensureDemFileRangeMap();
-  var bounds = _demFileMap.getBounds();
-  var bbox = _clampDemFileBbox({
-    west: bounds.getWest(),
-    east: bounds.getEast(),
-    south: bounds.getSouth(),
-    north: bounds.getNorth()
-  });
-  if (!bbox) return;
-  _setElevBboxInputs(bbox);
-  window.updateDemFileRangeUi();
-});
 
 document.getElementById('demResetExtentBtn').addEventListener('click', function() {
   if (!demFileExtent) return;
