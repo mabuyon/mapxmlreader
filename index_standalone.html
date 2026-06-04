@@ -332,7 +332,8 @@ input[type="file"] { display: none; }
 <div class="app">
   <div class="hero">
     <h1>地図XML / 標高データ DXF変換</h1>
-    <p>既存の地図XMLからのDXF変換を残したまま、標高タイルを使った等高線DXF変換を別機能として追加した版です。出力DXFは JW-CAD / JWW で開く前提で DXF R12 互換にしています。</p>
+    <p>法務省の地籍図XML・国土地理院の標高データ・地積測量図の座標一覧を、JW-CAD / JWW で開ける <b>DXF R12</b> 形式に変換するブラウザ完結型ツールです。インストール不要、サーバー不要。全処理はブラウザ内で完結します。</p>
+    <p style="margin-top:6px;font-size:.85rem;opacity:.7">① 地図XML→DXF　② 標高データ→DXF（等高線）　③ DEM検索（ファイル入手案内）　④ 座標TXT→DXF（地積測量図）</p>
   </div>
 
   <div class="tabs">
@@ -377,18 +378,31 @@ input[type="file"] { display: none; }
 
         <aside>
           <div class="section">
-            <h2>既存DXFのレイヤー</h2>
+            <h2>この機能について</h2>
+            <p class="hint">法務省が公開している<b>地籍図XML</b>（不動産登記の地図データ）を、JW-CAD / JWW で読み込める <b>DXF R12</b> 形式に変換します。ブラウザ内で完結するため、インターネット接続は不要です。</p>
+          </div>
+          <div class="section">
+            <h2>入力ファイルの入手方法</h2>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.2">
+              <li>法務省「登記所備付地図データ」サイトにアクセス</li>
+              <li>地域・地番を指定してXMLまたはZIPをダウンロード</li>
+              <li>このツールにドロップ → DXF変換</li>
+            </ol>
+            <p class="hint" style="margin-top:6px">ZIP形式の場合は内部の XML を自動抽出します。複数XMLが含まれていても対応します。</p>
+          </div>
+          <div class="section">
+            <h2>出力レイヤー</h2>
             <ul class="layer-list">
-              <li><span class="dot" style="background:#e53e3e"></span>BOUNDARY: 筆界線</li>
-              <li><span class="dot" style="background:#38a169"></span>LANDNUMBER: 地番</li>
-              <li><span class="dot" style="background:#3182ce"></span>BND_POINT: 筆界点</li>
+              <li><span class="dot" style="background:#e53e3e"></span>BOUNDARY: 筆界線（土地の境界線）</li>
+              <li><span class="dot" style="background:#38a169"></span>LANDNUMBER: 地番（区画番号テキスト）</li>
+              <li><span class="dot" style="background:#3182ce"></span>BND_POINT: 筆界点（境界のマーカー）</li>
               <li><span class="dot" style="background:#d69e2e"></span>REF_POINT: 基準点・引照点</li>
-              <li><span class="dot" style="background:#e2e8f0"></span>FRAME: 図郭</li>
+              <li><span class="dot" style="background:#e2e8f0"></span>FRAME: 図郭（地図の外枠）</li>
             </ul>
           </div>
           <div class="section">
-            <h2>変換仕様</h2>
-            <p class="hint">座標は既存ロジックを維持し、公共座標の X/Y を DXF上では Y/X に入れ替えて mm 単位で出力します。DXFは `AC1009` で生成します。</p>
+            <h2>座標変換の仕様</h2>
+            <p class="hint">日本公共座標系の X（北）/ Y（東）を DXF 上では Y / X に入れ替え、m → mm 単位に変換して出力します。出力 DXF のバージョンは <b>AC1009（R12）</b> です。</p>
           </div>
         </aside>
       </div>
@@ -478,27 +492,39 @@ input[type="file"] { display: none; }
 
         <aside>
           <div class="section">
-            <h2>標高DXFのレイヤー</h2>
-            <ul class="layer-list">
-              <li><span class="dot" style="background:#38a169"></span>CONTOUR_MAJOR: 計曲線</li>
-              <li><span class="dot" style="background:#63b3ed"></span>CONTOUR_MINOR: 主等高線</li>
-              <li><span class="dot" style="background:#f6ad55"></span>ELEV_POINT: 標高点・標高値</li>
-              <li><span class="dot" style="background:#e2e8f0"></span>FRAME: 変換範囲枠</li>
+            <h2>この機能について</h2>
+            <p class="hint">国土地理院の<b>標高データ</b>から等高線・標高点を含む DXF ファイルを生成します。地形図の作成や造成計画の基図として利用できます。</p>
+            <p class="hint" style="margin-top:6px">データソースは <b>2種類</b> から選択できます。</p>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:4px">
+              <li><b>地理院タイルAPI</b>：ネット経由でリアルタイム取得。手軽に使える。</li>
+              <li><b>基盤地図情報DEMファイル</b>：ZIP をアップロードしてオフライン変換。1m メッシュ等の高精度データに対応。</li>
             </ul>
           </div>
           <div class="section">
-            <h2>座標系の扱い</h2>
-            <p class="hint">標高タイルは経度・緯度で指定し、DXF出力時には範囲中心を原点とするローカル平面座標に変換して mm 単位で出力します。狭い範囲の地形図向けの簡易平面化です。</p>
+            <h2>出力レイヤー</h2>
+            <ul class="layer-list">
+              <li><span class="dot" style="background:#38a169"></span>CONTOUR_MAJOR: 計曲線（主曲線×計曲線ピッチ本ごと）</li>
+              <li><span class="dot" style="background:#63b3ed"></span>CONTOUR_MINOR: 主等高線（設定間隔ごと）</li>
+              <li><span class="dot" style="background:#f6ad55"></span>ELEV_POINT: 標高点・標高値テキスト</li>
+              <li><span class="dot" style="background:#e2e8f0"></span>FRAME: 変換範囲の外枠</li>
+            </ul>
           </div>
           <div class="section">
-            <h2>取得仕様</h2>
-            <p class="hint">標高タイルは国土地理院の PNG 標高タイルを取得します。標高値は RGB から復号し、無効値 `(128,0,0)` は除外します。</p>
+            <h2>等高線の生成方式</h2>
+            <p class="hint">Marching Squares アルゴリズムをブラウザ内で実行して等高線を生成します。JW-CAD 非対応の LWPOLYLINE は使用せず、LINE エンティティのみで出力します。</p>
+          </div>
+          <div class="section">
+            <h2>座標系の扱い</h2>
+            <p class="hint">変換範囲の中心を原点とするローカル平面座標（簡易平面化）で出力します。mm 単位。狭い範囲（数 km 以内）の地形図に適しています。</p>
+          </div>
+          <div class="section">
+            <h2>タイルAPI 仕様</h2>
+            <p class="hint">PNG 標高タイルの RGB 値から標高を復号します。無効値 <code>(128,0,0)</code> と透明ピクセルは NaN として除外します。</p>
             <div class="code-block">URL:
-https://cyberjapandata.gsi.go.jp/xyz/{tiletype}/{z}/{x}/{y}.png
+https://cyberjapandata.gsi.go.jp/xyz/{type}/{z}/{x}/{y}.png
 
-DEM1A: Z 1-17
-DEM5A/B/C: Z 1-15
-DEM10B (dem_png): Z 1-14</div>
+DEM1A  : 1m メッシュ（航空レーザー）Z 1-17
+DEM5A/B/C: 5m メッシュ Z 1-15</div>
           </div>
         </aside>
       </div>
@@ -568,6 +594,11 @@ DEM10B (dem_png): Z 1-14</div>
         </div>
         <div style="width:260px;min-width:220px;display:grid;gap:14px;align-content:start">
           <div class="section">
+            <h2>このタブの目的</h2>
+            <p class="hint"><b>標高タブ</b>の「基盤地図情報DEMファイル」変換に使用する ZIP ファイルを特定・入手するためのタブです。</p>
+            <p class="hint" style="margin-top:6px">国土地理院が公開している数値標高モデル（DEM）は <b>2次メッシュ</b>（約 10km 四方）単位で ZIP 配布されています。変換したい地域のメッシュを地図上で選択し、ダウンロードサービスへ誘導します。</p>
+          </div>
+          <div class="section">
             <h2>住所検索</h2>
             <div class="field">
               <label for="demAddressInput">住所・地名</label>
@@ -603,14 +634,25 @@ DEM10B (dem_png): Z 1-14</div>
             <div class="message warn" id="demAutoDownloadWarn"></div>
           </div>
           <div class="section">
-            <h2>ダウンロード手順</h2>
+            <h2>DEM種別の選び方</h2>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.2">
+              <li><b>DEM1A</b>：1m精度・航空レーザー測量。精度最高だが提供エリア限定。</li>
+              <li><b>DEM5A</b>：5m精度・航空レーザー測量。広域カバー。</li>
+              <li><b>DEM5B</b>：5m精度・写真測量。</li>
+              <li><b>DEM5C</b>：5m精度・地形図数値化。古いデータを含む。</li>
+            </ul>
+          </div>
+          <div class="section">
+            <h2>ZIP 入手の手順</h2>
             <ol class="hint" style="padding-left:1.4em;line-height:2.2">
-              <li>住所検索で地図を移動</li>
-              <li>メッシュをクリックして選択</li>
-              <li>「基盤地図情報サービスを開く」</li>
-              <li>ログイン後にZIPをDL</li>
-              <li>標高タブでZIPをドロップ</li>
+              <li>住所検索で目的の地域に移動</li>
+              <li>地図上のメッシュ枠をクリックして選択（青色表示）</li>
+              <li>「基盤地図情報サービスを開く」をクリック</li>
+              <li>サービスサイトでログイン後、数値標高モデルを検索</li>
+              <li>該当メッシュの ZIP をダウンロード</li>
+              <li>「標高データ → DXF」タブに ZIP をドロップして変換</li>
             </ol>
+            <p class="hint" style="margin-top:6px">※ダウンロードには <b>service.gsi.go.jp</b> への無償ユーザー登録が必要です。</p>
           </div>
         </div>
       </div>
@@ -644,23 +686,36 @@ DEM10B (dem_png): Z 1-14</div>
         </div>
         <aside>
           <div class="section">
-            <h2>出力レイヤー</h2>
-            <ul class="layer-list">
-              <li><span class="dot" style="background:#e2e8f0"></span>_0-0_BOUNDARY: 座標点・点名テキスト</li>
-              <li><span class="dot" style="background:#e2e8f0"></span>ADD_LINE: 折れ線（グループ内接続）</li>
-            </ul>
+            <h2>この機能について</h2>
+            <p class="hint">地積測量図に記載されている<b>座標一覧</b>（テキスト形式）を読み込み、JW-CAD で確認・編集できる DXF ファイルに変換します。</p>
+            <p class="hint" style="margin-top:6px">境界点の座標と点名をマーカー＋テキストで配置し、各グループ内の点を順番に折れ線で結びます。筆界確認・境界復元の下図として使用できます。</p>
           </div>
           <div class="section">
             <h2>入力フォーマット</h2>
-            <p class="hint">各行は「行番号 <b>TAB</b> 点名,X座標,Y座標」の形式。空行でグループを区切ります。X・Yは日本公共座標系（m）。グループ内の点は順に折れ線で結ばれます。</p>
+            <p class="hint">各行の形式：<b>行番号 [TAB] 点名,X座標,Y座標</b></p>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.0;margin-top:4px">
+              <li>区切り文字：TABと<b>カンマ</b>を組み合わせて使用</li>
+              <li>X・Y：日本公共座標系の値（単位：m）</li>
+              <li><b>空行</b>でグループを区切る（グループ＝1本の折れ線）</li>
+              <li>同じ点名が複数グループに出現しても座標点は1つだけ出力</li>
+            </ul>
             <div class="code-block" style="font-size:.75rem;white-space:pre">1&#9;9697,157893.691,-44646.658
 2&#9;9660,157883.699,-44646.217
-（空行）
-3&#9;9662,157881.980,-44736.027</div>
+3&#9;9661,157901.160,-44732.647
+（空行 → ここで別グループ開始）
+4&#9;9662,157881.980,-44736.027
+5&#9;9663,157866.810,-44734.717</div>
           </div>
           <div class="section">
-            <h2>座標変換</h2>
-            <p class="hint">公共座標の X（北）/ Y（東）を DXF 上では Y / X に入れ替え、mm 単位で出力します。原点は入力データの最小座標付近に自動設定されます。</p>
+            <h2>出力レイヤー</h2>
+            <ul class="layer-list">
+              <li><span class="dot" style="background:#e2e8f0"></span>_0-0_BOUNDARY: 座標点マーカー＋点名テキスト</li>
+              <li><span class="dot" style="background:#e2e8f0"></span>ADD_LINE: グループ内の折れ線（境界線）</li>
+            </ul>
+          </div>
+          <div class="section">
+            <h2>座標変換の仕様</h2>
+            <p class="hint">公共座標の X（北）/ Y（東）を DXF 上では Y / X に入れ替え、mm 単位で出力します。テキスト高さは 3000 mm（1/1000 縮尺図向け）。原点は入力データ全体の最小座標付近に自動設定されます。</p>
           </div>
         </aside>
       </div>
