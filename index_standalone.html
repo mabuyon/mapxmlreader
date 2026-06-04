@@ -339,6 +339,7 @@ input[type="file"] { display: none; }
     <button class="tab-btn active" data-tab="coordPanel">地図XML → DXF</button>
     <button class="tab-btn" data-tab="elevPanel">標高データ → DXF</button>
     <button class="tab-btn" data-tab="demSearchPanel">DEM 検索</button>
+    <button class="tab-btn" data-tab="coordTxtPanel">座標TXT → DXF</button>
   </div>
 
   <div class="content">
@@ -612,6 +613,56 @@ DEM10B (dem_png): Z 1-14</div>
             </ol>
           </div>
         </div>
+      </div>
+    </section>
+    <section class="panel" id="coordTxtPanel">
+      <div class="panel-grid">
+        <div>
+          <div class="section">
+            <h2>変換元ファイル</h2>
+            <p class="hint">地積測量図の座標一覧テキストファイル（.txt）を指定します。</p>
+            <div class="drop-zone" id="coordTxtDropZone">
+              <span class="icon">📄</span>
+              <div class="main">座標TXT をドロップ</div>
+              <div class="sub">クリックしてファイル選択</div>
+            </div>
+            <input type="file" id="coordTxtFileInput" accept=".txt,.csv">
+            <div class="file-badge" id="coordTxtFileBadge" style="display:none">
+              <div class="info">
+                <div class="name" id="coordTxtFileName">-</div>
+                <div class="size" id="coordTxtFileSize">-</div>
+              </div>
+              <button class="rm" id="coordTxtRemoveBtn" type="button">×</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="coordTxtConvertBtn" disabled>DXF変換</button>
+            </div>
+            <div class="message warn" id="coordTxtWarnBox" style="display:none"></div>
+            <div class="message error" id="coordTxtErrorBox" style="display:none"></div>
+            <div class="message success" id="coordTxtSuccessBox" style="display:none"></div>
+          </div>
+        </div>
+        <aside>
+          <div class="section">
+            <h2>出力レイヤー</h2>
+            <ul class="layer-list">
+              <li><span class="dot" style="background:#e2e8f0"></span>_0-0_BOUNDARY: 座標点・点名テキスト</li>
+              <li><span class="dot" style="background:#e2e8f0"></span>ADD_LINE: 折れ線（グループ内接続）</li>
+            </ul>
+          </div>
+          <div class="section">
+            <h2>入力フォーマット</h2>
+            <p class="hint">各行は「行番号 <b>TAB</b> 点名,X座標,Y座標」の形式。空行でグループを区切ります。X・Yは日本公共座標系（m）。グループ内の点は順に折れ線で結ばれます。</p>
+            <div class="code-block" style="font-size:.75rem;white-space:pre">1&#9;9697,157893.691,-44646.658
+2&#9;9660,157883.699,-44646.217
+（空行）
+3&#9;9662,157881.980,-44736.027</div>
+          </div>
+          <div class="section">
+            <h2>座標変換</h2>
+            <p class="hint">公共座標の X（北）/ Y（東）を DXF 上では Y / X に入れ替え、mm 単位で出力します。原点は入力データの最小座標付近に自動設定されます。</p>
+          </div>
+        </aside>
       </div>
     </section>
   </div>
@@ -2458,6 +2509,156 @@ function boundsFromPoints(points) {
   if (!Number.isFinite(minX)) return { minX: 0, minY: 0, maxX: 1000, maxY: 1000 };
   const pad = 1000;
   return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+}
+
+/* -------------------- 座標TXT → DXF -------------------- */
+(function () {
+  var coordTxtFile = null;
+  var dropZone  = document.getElementById('coordTxtDropZone');
+  var fileInput = document.getElementById('coordTxtFileInput');
+  var fileBadge = document.getElementById('coordTxtFileBadge');
+  var fileNameEl = document.getElementById('coordTxtFileName');
+  var fileSizeEl = document.getElementById('coordTxtFileSize');
+  var removeBtn  = document.getElementById('coordTxtRemoveBtn');
+  var convertBtn = document.getElementById('coordTxtConvertBtn');
+  var warnBox    = document.getElementById('coordTxtWarnBox');
+  var errorBox   = document.getElementById('coordTxtErrorBox');
+  var successBox = document.getElementById('coordTxtSuccessBox');
+
+  function setFile(file) {
+    coordTxtFile = file;
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = fmtSize(file.size);
+    fileBadge.style.display = 'flex';
+    convertBtn.disabled = false;
+    warnBox.style.display = 'none';
+    errorBox.style.display = 'none';
+    successBox.style.display = 'none';
+  }
+  function clearFile() {
+    coordTxtFile = null;
+    fileInput.value = '';
+    fileBadge.style.display = 'none';
+    convertBtn.disabled = true;
+  }
+
+  dropZone.addEventListener('click', function () { fileInput.click(); });
+  dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('drag-over'); });
+  dropZone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    var f = e.dataTransfer.files[0];
+    if (f) setFile(f);
+  });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+  removeBtn.addEventListener('click', clearFile);
+
+  convertBtn.addEventListener('click', async function () {
+    if (!coordTxtFile) return;
+    errorBox.style.display = 'none';
+    successBox.style.display = 'none';
+    try {
+      var text = await coordTxtFile.text();
+      var groups = parseCoordTxt(text);
+      if (groups.length === 0) throw new Error('有効な座標データが見つかりませんでした。');
+      var dxf = generateCoordTxtDxf(groups);
+      var filename = coordTxtFile.name.replace(/\.[^.]+$/, '') + '.dxf';
+      downloadTextFile(filename, dxf);
+      successBox.innerHTML = '変換完了: <b>' + escapeHtml(filename) + '</b>（' + fmtSize(new Blob([dxf]).size) + '）';
+      successBox.style.display = 'block';
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.style.display = 'block';
+    }
+  });
+})();
+
+function parseCoordTxt(text) {
+  var groups = [];
+  var current = [];
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var raw = lines[i].trim();
+    if (!raw) {
+      if (current.length > 0) { groups.push(current); current = []; }
+      continue;
+    }
+    var tab = raw.indexOf('\t');
+    var data = tab >= 0 ? raw.slice(tab + 1) : raw;
+    var parts = data.split(',');
+    if (parts.length < 3) continue;
+    var name = parts[0].trim();
+    var x = parseFloat(parts[1]);
+    var y = parseFloat(parts[2]);
+    if (!name || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+    current.push({ name: name, x: x, y: y });
+  }
+  if (current.length > 0) groups.push(current);
+  return groups;
+}
+
+function generateCoordTxtDxf(groups) {
+  /* 全ユニーク点を出現順に収集 */
+  var seen = Object.create(null);
+  var uniquePts = [];
+  for (var i = 0; i < groups.length; i++) {
+    for (var j = 0; j < groups[i].length; j++) {
+      var pt = groups[i][j];
+      if (!seen[pt.name]) {
+        seen[pt.name] = true;
+        uniquePts.push(pt);
+      }
+    }
+  }
+
+  /* 公共座標 X(北)/Y(東) → DXF x=Y*1000mm, y=X*1000mm */
+  function toDxf(p) { return [p.y * 1000, p.x * 1000]; }
+
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (var k = 0; k < uniquePts.length; k++) {
+    var d = toDxf(uniquePts[k]);
+    if (d[0] < minX) minX = d[0];
+    if (d[0] > maxX) maxX = d[0];
+    if (d[1] < minY) minY = d[1];
+    if (d[1] > maxY) maxY = d[1];
+  }
+  var span = Math.max(maxX - minX, maxY - minY, 1);
+  var margin = span * 0.05 + 10000;
+  var ox = minX - margin, oy = minY - margin;
+  function toLocal(p) { var d = toDxf(p); return [d[0] - ox, d[1] - oy]; }
+
+  var textH = 3000;
+
+  return buildDxf({
+    layers: [
+      ['_0-0_BOUNDARY', 7],
+      ['ADD_LINE', 7]
+    ],
+    extents: {
+      minX: 0, minY: 0,
+      maxX: maxX - ox + margin,
+      maxY: maxY - oy + margin
+    },
+    entities: function (writer) {
+      /* ADD_LINE: グループ内の点を折れ線で結ぶ */
+      for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        for (var j = 0; j < g.length - 1; j++) {
+          var a = toLocal(g[j]), b = toLocal(g[j + 1]);
+          writer.line('ADD_LINE', a[0], a[1], b[0], b[1]);
+        }
+      }
+      /* _0-0_BOUNDARY: ユニーク点のマーカーと点名テキスト */
+      for (var k = 0; k < uniquePts.length; k++) {
+        var p = toLocal(uniquePts[k]);
+        writer.point('_0-0_BOUNDARY', p[0], p[1]);
+        writer.text('_0-0_BOUNDARY', p[0] - textH, p[1] - textH * 0.5, textH, uniquePts[k].name);
+      }
+    }
+  });
 }
 
 /* -------------------- shared DXF writer -------------------- */
