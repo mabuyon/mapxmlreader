@@ -2387,12 +2387,13 @@ elevConvertBtn.addEventListener('click', async () => {
 
     let elevPoints = [];
     if (pointSpacing > 0) {
-      setElevationProgress(p2, `標高点をサンプリング中... (等高線 ${contourSegments.length.toLocaleString()} 本生成済)`);
+      setElevationProgress(p2, `標高点をサンプリング中... 等高線 ${contourSegments.length.toLocaleString()} 本 ／ 推定 ${fmtSize(contourSegments.length * 130 + 3000)}`);
       await uiYield();
       elevPoints = sampleElevationPoints(raster, pointSpacing);
     }
 
-    setElevationProgress(p3, `DXFを生成中... (等高線 ${contourSegments.length.toLocaleString()} 本 / 標高点 ${elevPoints.length.toLocaleString()} 点)`);
+    const estBytes = contourSegments.length * 130 + elevPoints.length * 220 + 3000;
+    setElevationProgress(p3, `DXFを生成中... 等高線 ${contourSegments.length.toLocaleString()} 本 / 標高点 ${elevPoints.length.toLocaleString()} 点 ／ 推定 ${fmtSize(estBytes)}`);
     await uiYield();
     const dxf = generateElevationDxf({
       raster,
@@ -2553,7 +2554,7 @@ async function generateContours(raster, levels, progressCallback) {
       if (progressCallback) {
         progressCallback(
           Math.round(li / total * 100),
-          `等高線生成中 ${li}/${total} レベル完了 — ${level.toFixed(2)}m 処理中 (線分 ${segments.length.toLocaleString()} 本)`
+          `等高線生成中 ${li}/${total} レベル — 線分 ${segments.length.toLocaleString()} 本 ／ 推定 ${fmtSize(segments.length * 130 + 3000)}`
         );
       }
       await uiYield();
