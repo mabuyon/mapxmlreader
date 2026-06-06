@@ -646,6 +646,18 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
             <span></span>
           </div>
           <div id="contourLayerRows" style="display:grid;gap:4px"></div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:6px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
+              <label class="hint" style="font-size:.82rem">（B）標高点・標高値テキスト</label>
+              <input type="text" id="elevPointLayerName" value="ELEV_POINT" placeholder="レイヤ名"
+                style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
+              <label class="hint" style="font-size:.82rem">（C）枠・四隅 LATLON</label>
+              <input type="text" id="frameLayerName" value="FRAME" placeholder="レイヤ名"
+                style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">
+            </div>
+          </div>
         </div>
         <div class="btn-row">
           <button class="btn" id="elevConvertBtn" type="button">標高DXFを作成</button>
@@ -2418,10 +2430,14 @@ elevConvertBtn.addEventListener('click', async () => {
     setElevationProgress(p3, `DXFを生成中... 等高線 ${contourSegments.length.toLocaleString()} 本 / 標高点 ${elevPoints.length.toLocaleString()} 点 ／ 推定 ${fmtSize(estBytes)}`);
     await uiYield();
     const layerDefs = readContourLayerDefs();
+    const elevPointLayer = (document.getElementById('elevPointLayerName').value.trim()) || 'ELEV_POINT';
+    const frameLayer     = (document.getElementById('frameLayerName').value.trim())     || 'FRAME';
     const dxf = generateElevationDxf({
       raster,
       contourSegments,
       layerDefs,
+      elevPointLayer,
+      frameLayer,
       elevPoints,
       includePointLabels: includePointLabelsEl.checked,
       includeContourLabels: includeContourLabelsEl.checked
@@ -2648,6 +2664,8 @@ function generateElevationDxf(opts) {
     raster,
     contourSegments,
     layerDefs,
+    elevPointLayer = 'ELEV_POINT',
+    frameLayer     = 'FRAME',
     elevPoints,
     includePointLabels,
     includeContourLabels
@@ -2675,8 +2693,8 @@ function generateElevationDxf(opts) {
   return buildDxf({
     layers: [
       ...uniqueContourLayers,
-      ['ELEV_POINT', 2],
-      ['FRAME', 7]
+      [elevPointLayer, 2],
+      [frameLayer, 7]
     ],
     extents,
     entities: writer => {
@@ -2703,7 +2721,7 @@ function generateElevationDxf(opts) {
       for (let i = 0; i < 4; i++) {
         const a = corners[i];
         const b = corners[(i + 1) % 4];
-        writer.line('FRAME', a[0], a[1], b[0], b[1]);
+        writer.line(frameLayer, a[0], a[1], b[0], b[1]);
       }
 
       /* FRAMEの4隅に経緯度ラベルを追記（座標確認用） */
@@ -2717,13 +2735,13 @@ function generateElevationDxf(opts) {
         const [cx, cy] = corners[i];
         const { lon, lat } = bboxCoords[i];
         const yOff = cornerDirs[i];
-        writer.text('FRAME', cx, cy + yOff * th * 1.2, th, `lat:${lat.toFixed(6)}`, 1, 2);
-        writer.text('FRAME', cx, cy + yOff * th * 2.5, th, `lon:${lon.toFixed(6)}`, 1, 2);
+        writer.text(frameLayer, cx, cy + yOff * th * 1.2, th, `lat:${lat.toFixed(6)}`, 1, 2);
+        writer.text(frameLayer, cx, cy + yOff * th * 2.5, th, `lon:${lon.toFixed(6)}`, 1, 2);
       }
 
       for (const p of elevPoints) {
-        writer.point('ELEV_POINT', p.x, p.y);
-        if (includePointLabels) writer.text('ELEV_POINT', p.x + textHeight, p.y + textHeight, textHeight * 0.7, p.elevation.toFixed(2));
+        writer.point(elevPointLayer, p.x, p.y);
+        if (includePointLabels) writer.text(elevPointLayer, p.x + textHeight, p.y + textHeight, textHeight * 0.7, p.elevation.toFixed(2));
       }
     }
   });
@@ -3489,8 +3507,10 @@ function _updateLayerListPanel() {
     return '<li><span class="dot" style="background:' + color + '"></span>' +
       escapeHtml(d.name) + ': ' + d.interval + 'm等高線</li>';
   });
-  rows.push('<li><span class="dot" style="background:#f6ad55"></span>ELEV_POINT: 標高点・標高値</li>');
-  rows.push('<li><span class="dot" style="background:#e2e8f0"></span>FRAME: 変換範囲の外枠</li>');
+  var epName = (document.getElementById('elevPointLayerName') || {}).value || 'ELEV_POINT';
+  var frName = (document.getElementById('frameLayerName') || {}).value || 'FRAME';
+  rows.push('<li><span class="dot" style="background:#f6ad55"></span>' + escapeHtml(epName) + ': 標高点・標高値テキスト</li>');
+  rows.push('<li><span class="dot" style="background:#e2e8f0"></span>' + escapeHtml(frName) + ': 枠・四隅 LATLON</li>');
   list.innerHTML = rows.join('');
 }
 
@@ -3498,6 +3518,8 @@ document.getElementById('addContourLayerBtn').addEventListener('click', function
   document.getElementById('contourLayerRows').appendChild(_makeLayerRow(1, ''));
   _updateLayerListPanel();
 });
+document.getElementById('elevPointLayerName').addEventListener('input', _updateLayerListPanel);
+document.getElementById('frameLayerName').addEventListener('input', _updateLayerListPanel);
 
 _initContourLayerTable();
 
