@@ -552,10 +552,12 @@ input[type="file"] { display: none; }
           </div>
           <div class="section">
             <h2>出力レイヤー</h2>
-            <ul class="layer-list">
-              <li><span class="dot" style="background:#38a169"></span>CONTOUR_MAJOR: 計曲線（主曲線×計曲線ピッチ本ごと）</li>
-              <li><span class="dot" style="background:#63b3ed"></span>CONTOUR_MINOR: 主等高線（設定間隔ごと）</li>
-              <li><span class="dot" style="background:#f6ad55"></span>ELEV_POINT: 標高点・標高値テキスト</li>
+            <ul class="layer-list" id="elevLayerList">
+              <li><span class="dot" style="background:#e53e3e"></span>5: 50m等高線</li>
+              <li><span class="dot" style="background:#dd6b20"></span>6: 10m等高線</li>
+              <li><span class="dot" style="background:#38a169"></span>7: 5m等高線</li>
+              <li><span class="dot" style="background:#63b3ed"></span>8: 1m等高線</li>
+              <li><span class="dot" style="background:#f6ad55"></span>ELEV_POINT: 標高点・標高値</li>
               <li><span class="dot" style="background:#e2e8f0"></span>FRAME: 変換範囲の外枠</li>
             </ul>
           </div>
@@ -624,6 +626,19 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
         <div class="btn-row">
           <label class="check"><input id="includePointLabels" type="checkbox" checked> 標高点に数値を付ける</label>
           <label class="check"><input id="includeContourLabels" type="checkbox"> 等高線ラベルを付ける</label>
+        </div>
+        <div style="margin-top:16px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:.9rem;font-weight:600;color:#cbd5e1">等高線レイヤ設定</span>
+            <button class="btn secondary" id="addContourLayerBtn" type="button" style="font-size:.78rem;min-height:28px;padding:0 10px">＋ 追加</button>
+          </div>
+          <p class="hint" style="margin-bottom:10px">各等高線をDXFのどのレイヤに格納するか設定します。上の行が優先されます（大きい間隔が先に判定）。</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px 8px;align-items:center;margin-bottom:6px">
+            <span class="hint" style="font-size:.78rem">間隔 [m]</span>
+            <span class="hint" style="font-size:.78rem">レイヤ名</span>
+            <span></span>
+          </div>
+          <div id="contourLayerRows" style="display:grid;gap:4px"></div>
         </div>
         <div class="btn-row">
           <button class="btn" id="elevConvertBtn" type="button">標高DXFを作成</button>
@@ -2395,11 +2410,11 @@ elevConvertBtn.addEventListener('click', async () => {
     const estBytes = contourSegments.length * 130 + elevPoints.length * 220 + 3000;
     setElevationProgress(p3, `DXFを生成中... 等高線 ${contourSegments.length.toLocaleString()} 本 / 標高点 ${elevPoints.length.toLocaleString()} 点 ／ 推定 ${fmtSize(estBytes)}`);
     await uiYield();
+    const layerDefs = readContourLayerDefs();
     const dxf = generateElevationDxf({
       raster,
       contourSegments,
-      contourInterval,
-      majorEvery,
+      layerDefs,
       elevPoints,
       includePointLabels: includePointLabelsEl.checked,
       includeContourLabels: includeContourLabelsEl.checked
@@ -2625,7 +2640,7 @@ function generateElevationDxf(opts) {
   const {
     raster,
     contourSegments,
-    majorEvery,
+    layerDefs,
     elevPoints,
     includePointLabels,
     includeContourLabels
@@ -2643,10 +2658,16 @@ function generateElevationDxf(opts) {
   const labelPts = corners.map(([cx, cy], i) => [cx, cy + cornerDirs[i] * th * 3]);
   const extents = boundsFromPoints(corners.concat(elevPoints.map(p => [p.x, p.y])).concat(labelPts));
 
+  /* レイヤ定義からDXFレイヤリスト生成（間隔大→小の順でDXFカラー割り当て） */
+  const contourLayers = layerDefs.map((d, i) => [d.name, CONTOUR_LAYER_COLORS[i % CONTOUR_LAYER_COLORS.length]]);
+  /* 同名レイヤの重複を除去 */
+  const layerMap = new Map();
+  contourLayers.forEach(([name, color]) => { if (!layerMap.has(name)) layerMap.set(name, color); });
+  const uniqueContourLayers = Array.from(layerMap.entries());
+
   return buildDxf({
     layers: [
-      ['CONTOUR_MAJOR', 3],
-      ['CONTOUR_MINOR', 5],
+      ...uniqueContourLayers,
       ['ELEV_POINT', 2],
       ['FRAME', 7]
     ],
@@ -2659,11 +2680,9 @@ function generateElevationDxf(opts) {
         /* 縮退セグメント（ほぼゼロ長）を除去 */
         const dx = seg.b[0] - seg.a[0], dy = seg.b[1] - seg.a[1];
         if (dx * dx + dy * dy < 100) continue; /* < 10mm → スキップ */
-        const layer = Math.abs(seg.level / majorEvery - Math.round(seg.level / majorEvery)) < 1e-9
-          ? 'CONTOUR_MAJOR'
-          : 'CONTOUR_MINOR';
+        const layer = getContourLayerName(seg.level, layerDefs);
         writer.line(layer, seg.a[0], seg.a[1], seg.b[0], seg.b[1]);
-        if (includeContourLabels && layer === 'CONTOUR_MAJOR') {
+        if (includeContourLabels) {
           const cx = (seg.a[0] + seg.b[0]) / 2;
           const cy = (seg.a[1] + seg.b[1]) / 2;
           const last = lastLabelPos.get(seg.level);
@@ -3396,6 +3415,84 @@ document.getElementById('demAutoDownloadBtn').addEventListener('click', async fu
     warn.style.display = 'block';
   }
 });
+
+/* -------------------- 等高線レイヤ設定 -------------------- */
+const CONTOUR_LAYER_COLORS = [1, 6, 3, 4, 5, 2, 8, 9];
+const DEFAULT_CONTOUR_LAYERS = [
+  { interval: 50, name: '5' },
+  { interval: 10, name: '6' },
+  { interval: 5,  name: '7' },
+  { interval: 1,  name: '8' }
+];
+
+function _makeLayerRow(interval, name) {
+  var row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:4px 8px;align-items:center';
+  row.innerHTML =
+    '<input type="number" class="cl-int" value="' + interval + '" min="0.01" step="any"' +
+      ' style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">' +
+    '<input type="text" class="cl-name" value="' + name + '" placeholder="レイヤ名"' +
+      ' style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">' +
+    '<button type="button" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:1.1rem;padding:0 4px;line-height:1">×</button>';
+  row.querySelector('button').addEventListener('click', function() {
+    row.remove();
+    _updateLayerListPanel();
+  });
+  row.querySelector('.cl-int').addEventListener('input', _updateLayerListPanel);
+  row.querySelector('.cl-name').addEventListener('input', _updateLayerListPanel);
+  return row;
+}
+
+function _initContourLayerTable() {
+  var container = document.getElementById('contourLayerRows');
+  container.innerHTML = '';
+  DEFAULT_CONTOUR_LAYERS.forEach(function(d) {
+    container.appendChild(_makeLayerRow(d.interval, d.name));
+  });
+  _updateLayerListPanel();
+}
+
+function readContourLayerDefs() {
+  var rows = document.querySelectorAll('#contourLayerRows > div');
+  var defs = [];
+  rows.forEach(function(row) {
+    var iv = parseFloat(row.querySelector('.cl-int').value);
+    var nm = row.querySelector('.cl-name').value.trim();
+    if (Number.isFinite(iv) && iv > 0 && nm) defs.push({ interval: iv, name: nm });
+  });
+  defs.sort(function(a, b) { return b.interval - a.interval; });
+  return defs;
+}
+
+function getContourLayerName(level, defs) {
+  for (var i = 0; i < defs.length; i++) {
+    var ratio = level / defs[i].interval;
+    if (Math.abs(ratio - Math.round(ratio)) < 1e-6) return defs[i].name;
+  }
+  return defs.length ? defs[defs.length - 1].name : 'CONTOUR';
+}
+
+function _updateLayerListPanel() {
+  var defs = readContourLayerDefs();
+  var list = document.getElementById('elevLayerList');
+  if (!list) return;
+  var dotColors = ['#e53e3e','#dd6b20','#38a169','#63b3ed','#9f7aea','#ed64a6','#f6ad55','#68d391'];
+  var rows = defs.map(function(d, i) {
+    var color = dotColors[i % dotColors.length];
+    return '<li><span class="dot" style="background:' + color + '"></span>' +
+      escapeHtml(d.name) + ': ' + d.interval + 'm等高線</li>';
+  });
+  rows.push('<li><span class="dot" style="background:#f6ad55"></span>ELEV_POINT: 標高点・標高値</li>');
+  rows.push('<li><span class="dot" style="background:#e2e8f0"></span>FRAME: 変換範囲の外枠</li>');
+  list.innerHTML = rows.join('');
+}
+
+document.getElementById('addContourLayerBtn').addEventListener('click', function() {
+  document.getElementById('contourLayerRows').appendChild(_makeLayerRow(1, ''));
+  _updateLayerListPanel();
+});
+
+_initContourLayerTable();
 
 /* タブ切り替え時に地図を初期化 */
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
