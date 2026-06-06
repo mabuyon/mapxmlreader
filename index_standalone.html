@@ -351,14 +351,86 @@ input[type="file"] { display: none; }
   box-shadow: none !important;
 }
 .dem-mesh-tip::before, .dem-mesh-tip::after { display: none !important; }
+.viewer-shell {
+  display: grid;
+  gap: 16px;
+}
+.viewer-3d {
+  position: relative;
+  min-height: 560px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(99,179,237,.12), transparent 24%),
+    linear-gradient(180deg, #09101a, #05070b 72%);
+}
+.viewer-3d canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.viewer-overlay {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+}
+.viewer-chip {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(9,16,26,.78);
+  border: 1px solid rgba(148,163,184,.22);
+  color: #cbd5e1;
+  font-size: .78rem;
+  backdrop-filter: blur(6px);
+}
+.viewer-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.viewer-stat {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.02);
+}
+.viewer-stat .label {
+  color: var(--muted);
+  font-size: .75rem;
+}
+.viewer-stat .value {
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.slider-row input[type="range"] {
+  flex: 1;
+  min-width: 220px;
+}
 @media (max-width: 920px) {
   .panel-grid { grid-template-columns: 1fr; }
+  .viewer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   body { padding: 14px; }
   .hero, .content, .tabs { padding-left: 16px; padding-right: 16px; }
   .panel { padding: 16px; }
   .field-grid, .field-grid.three { grid-template-columns: 1fr; }
+  .viewer-stats { grid-template-columns: 1fr; }
+  .viewer-3d { min-height: 420px; }
 }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -375,6 +447,7 @@ input[type="file"] { display: none; }
     <button class="tab-btn" data-tab="elevPanel">③ 標高データ → DXF</button>
     <button class="tab-btn" data-tab="coordTxtPanel">④ 座標TXT → DXF</button>
     <button class="tab-btn" data-tab="chibanPanel">⑤ 地番検索</button>
+    <button class="tab-btn" data-tab="dxf3dPanel">⑥ 等高線DXF 3D</button>
   </div>
 
   <div class="content">
@@ -737,6 +810,93 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           </div>
           <div class="status-bar sb-hint" id="demStatusBar" style="margin-top:0">住所・地名を入力して「検索」をクリックしてください</div>
         </div>
+      </div>
+    </section>
+
+    <section class="panel" id="dxf3dPanel">
+      <div class="panel-grid">
+        <div>
+          <div class="section">
+            <h2>等高線DXFを読み込み</h2>
+            <p class="hint">このアプリで作成した等高線DXF、または同等の `LINE / TEXT / POINT` 構成のDXFを読み込んで3D表示します。参考: <code>FG-GML-543844-DEM1A-20250822_20260606_131604_CL05P5Dis5.dxf</code></p>
+            <div class="drop-zone" id="dxf3dDropZone">
+              <span class="icon">🗻</span>
+              <div class="main">等高線DXFをここにドロップ</div>
+              <div class="sub">クリックして `.dxf` を選択</div>
+            </div>
+            <input type="file" id="dxf3dFileInput" accept=".dxf">
+            <div class="file-badge" id="dxf3dFileBadge">
+              <div class="info">
+                <div class="name" id="dxf3dFileName">-</div>
+                <div class="size" id="dxf3dFileSize">-</div>
+              </div>
+              <button class="rm" id="dxf3dRemoveBtn" type="button">×</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="dxf3dLoadBtn" type="button" disabled>3D表示</button>
+              <button class="btn secondary" id="dxf3dResetViewBtn" type="button" disabled>視点リセット</button>
+            </div>
+            <div class="progress-section" id="dxf3dProgressSection">
+              <div class="progress-track"><div class="progress-fill" id="dxf3dProgressFill"></div></div>
+              <div class="progress-label" id="dxf3dProgressLabel">待機中</div>
+            </div>
+            <div class="message error" id="dxf3dErrorBox"></div>
+            <div class="message success" id="dxf3dSuccessBox"></div>
+            <div class="status-bar sb-hint" id="dxf3dStatusBar">等高線DXFファイルをドロップしてください</div>
+          </div>
+
+          <div class="section">
+            <h2>表示設定</h2>
+            <div class="slider-row">
+              <label for="dxf3dVerticalScale" style="min-width:120px;color:#cbd5e1;font-size:.86rem">鉛直強調</label>
+              <input id="dxf3dVerticalScale" type="range" min="0.2" max="8" step="0.1" value="1.8">
+              <span id="dxf3dVerticalScaleValue" style="min-width:48px;color:var(--primary-2);font-weight:700">1.8x</span>
+            </div>
+            <div class="btn-row">
+              <label class="check"><input id="dxf3dShowPoints" type="checkbox" checked> 標高点を表示</label>
+              <label class="check"><input id="dxf3dShowGrid" type="checkbox" checked> グリッドを表示</label>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>3Dビュー</h2>
+            <div class="viewer-shell">
+              <div class="viewer-3d" id="dxf3dViewport">
+                <div class="viewer-overlay">
+                  <div class="viewer-chip">左ドラッグ: 回転 / ホイール: 拡大縮小 / 右ドラッグ: 移動</div>
+                  <div class="viewer-chip" id="dxf3dOverlayInfo">未読み込み</div>
+                </div>
+              </div>
+              <div class="viewer-stats">
+                <div class="viewer-stat"><div class="label">等高線本数</div><div class="value" id="dxf3dStatContours">-</div></div>
+                <div class="viewer-stat"><div class="label">標高範囲</div><div class="value" id="dxf3dStatRange">-</div></div>
+                <div class="viewer-stat"><div class="label">標高点数</div><div class="value" id="dxf3dStatPoints">-</div></div>
+                <div class="viewer-stat"><div class="label">推定範囲</div><div class="value" id="dxf3dStatExtent">-</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="section">
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>等高線DXFをその場で立体確認できるようにするためのビューアです。地形の起伏、尾根・谷、造成の当たりを回転しながら確認できます。</p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:10px">
+              <li>DXFファイルをドロップ</li>
+              <li>「3D表示」をクリック</li>
+              <li>マウスで回転・拡大縮小・移動して地形を確認</li>
+              <li>必要なら鉛直強調を調整</li>
+            </ol>
+          </div>
+          <div class="section">
+            <h2>対応前提</h2>
+            <p class="hint">優先対応はこのアプリが出力した標高DXFです。等高線は `LINE`、標高値は等高線ラベル `TEXT` と標高点 `ELEV_POINT / ELEV_TEXT` から推定します。一般的なDXFの全仕様には対応していません。</p>
+          </div>
+          <div class="section">
+            <h2>表示仕様</h2>
+            <p class="hint">XYはDXFの平面座標をm換算で使用し、Zは標高値[m]を使用します。読み込んだ標高の最小値を基準に持ち上げ、色は低地から高地へ連続的に変化します。</p>
+          </div>
+        </aside>
       </div>
     </section>
     <section class="panel" id="coordTxtPanel">
@@ -1212,6 +1372,7 @@ function escapeHtml(s) {
     "'": '&#39;'
   }[ch]));
 }
+window.escapeHtml = window.escapeHtml || escapeHtml;
 function timestampedFilename(filename, suffix = '') {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
@@ -2766,6 +2927,677 @@ function boundsFromPoints(points) {
   return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
 }
 
+/* -------------------- ⑥ 等高線DXF 3D -------------------- */
+(function () {
+  var dxfFile = null;
+  var viewer = {
+    renderer: null,
+    scene: null,
+    camera: null,
+    controls: null,
+    terrainGroup: null,
+    pointsObject: null,
+    gridHelper: null,
+    axesHelper: null,
+    resizeObserver: null,
+    frameId: 0,
+    model: null,
+    defaultCamera: null
+  };
+
+  var dropZone = document.getElementById('dxf3dDropZone');
+  var fileInput = document.getElementById('dxf3dFileInput');
+  var fileBadge = document.getElementById('dxf3dFileBadge');
+  var fileNameEl = document.getElementById('dxf3dFileName');
+  var fileSizeEl = document.getElementById('dxf3dFileSize');
+  var removeBtn = document.getElementById('dxf3dRemoveBtn');
+  var loadBtn = document.getElementById('dxf3dLoadBtn');
+  var resetBtn = document.getElementById('dxf3dResetViewBtn');
+  var errorBox = document.getElementById('dxf3dErrorBox');
+  var successBox = document.getElementById('dxf3dSuccessBox');
+  var viewportEl = document.getElementById('dxf3dViewport');
+  var overlayInfoEl = document.getElementById('dxf3dOverlayInfo');
+  var verticalScaleEl = document.getElementById('dxf3dVerticalScale');
+  var verticalScaleValueEl = document.getElementById('dxf3dVerticalScaleValue');
+  var showPointsEl = document.getElementById('dxf3dShowPoints');
+  var showGridEl = document.getElementById('dxf3dShowGrid');
+  var statContoursEl = document.getElementById('dxf3dStatContours');
+  var statRangeEl = document.getElementById('dxf3dStatRange');
+  var statPointsEl = document.getElementById('dxf3dStatPoints');
+  var statExtentEl = document.getElementById('dxf3dStatExtent');
+
+  function setProgress(pct, msg) {
+    var section = document.getElementById('dxf3dProgressSection');
+    var fill = document.getElementById('dxf3dProgressFill');
+    var label = document.getElementById('dxf3dProgressLabel');
+    section.style.display = 'block';
+    fill.style.width = clamp(pct, 0, 100) + '%';
+    label.textContent = msg;
+  }
+
+  function resetProgress() {
+    document.getElementById('dxf3dProgressSection').style.display = 'none';
+    document.getElementById('dxf3dProgressFill').style.width = '0%';
+    document.getElementById('dxf3dProgressLabel').textContent = '待機中';
+  }
+
+  function hideMessages() {
+    errorBox.style.display = 'none';
+    successBox.style.display = 'none';
+  }
+
+  function setFile(file) {
+    dxfFile = file;
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = fmtSize(file.size);
+    fileBadge.style.display = 'flex';
+    loadBtn.disabled = false;
+    hideMessages();
+    resetProgress();
+    setStatus('dxf3dStatusBar', 'sb-ready', '「3D表示」をクリックしてください');
+  }
+
+  function clearFile() {
+    dxfFile = null;
+    fileInput.value = '';
+    fileBadge.style.display = 'none';
+    loadBtn.disabled = true;
+    resetBtn.disabled = !viewer.model;
+    hideMessages();
+    resetProgress();
+    setStats(null);
+    overlayInfoEl.textContent = viewer.model ? overlayInfoEl.textContent : '未読み込み';
+    setStatus('dxf3dStatusBar', 'sb-hint', '等高線DXFファイルをドロップしてください');
+  }
+
+  dropZone.addEventListener('click', function () { fileInput.click(); });
+  dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('drag-over'); });
+  dropZone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    var file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+  removeBtn.addEventListener('click', clearFile);
+
+  verticalScaleEl.addEventListener('input', function () {
+    verticalScaleValueEl.textContent = Number(this.value).toFixed(1) + 'x';
+    if (viewer.terrainGroup) viewer.terrainGroup.scale.y = parseFloat(this.value) || 1;
+  });
+  showPointsEl.addEventListener('change', function () {
+    if (viewer.pointsObject) viewer.pointsObject.visible = this.checked;
+  });
+  showGridEl.addEventListener('change', function () {
+    if (viewer.gridHelper) viewer.gridHelper.visible = this.checked;
+  });
+  resetBtn.addEventListener('click', function () {
+    if (viewer.model) resetViewerCamera(viewer.model);
+  });
+
+  function setStats(model) {
+    if (!model) {
+      statContoursEl.textContent = '-';
+      statRangeEl.textContent = '-';
+      statPointsEl.textContent = '-';
+      statExtentEl.textContent = '-';
+      return;
+    }
+    statContoursEl.textContent = model.chains.length.toLocaleString();
+    statRangeEl.textContent = fmtNum(model.minElevation, 2) + ' - ' + fmtNum(model.maxElevation, 2) + ' m';
+    statPointsEl.textContent = model.elevationPoints.length.toLocaleString();
+    statExtentEl.textContent = fmtNum(model.extent.widthMeters, 1) + 'm × ' + fmtNum(model.extent.heightMeters, 1) + 'm';
+  }
+
+  function ensureViewer() {
+    if (viewer.renderer) {
+      resizeViewer();
+      return;
+    }
+    if (!window.THREE || !window.THREE.OrbitControls) {
+      throw new Error('3D表示ライブラリの読込に失敗しました。ページを再読込してください。');
+    }
+    viewer.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    viewer.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    if ('outputColorSpace' in viewer.renderer && THREE.SRGBColorSpace) viewer.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    else if ('outputEncoding' in viewer.renderer && THREE.sRGBEncoding) viewer.renderer.outputEncoding = THREE.sRGBEncoding;
+    viewportEl.insertBefore(viewer.renderer.domElement, viewportEl.firstChild);
+
+    viewer.scene = new THREE.Scene();
+    viewer.scene.background = new THREE.Color(0x06090f);
+    viewer.scene.fog = new THREE.Fog(0x06090f, 300, 4000);
+
+    viewer.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 20000);
+    viewer.controls = new THREE.OrbitControls(viewer.camera, viewer.renderer.domElement);
+    viewer.controls.enableDamping = true;
+    viewer.controls.dampingFactor = 0.08;
+    viewer.controls.screenSpacePanning = true;
+    viewer.controls.minDistance = 10;
+    viewer.controls.maxDistance = 8000;
+
+    var ambient = new THREE.AmbientLight(0xffffff, 1.25);
+    var dir1 = new THREE.DirectionalLight(0xffffff, 1.1);
+    var dir2 = new THREE.DirectionalLight(0x6fb6ff, 0.6);
+    dir1.position.set(180, 240, 120);
+    dir2.position.set(-160, 120, -180);
+    viewer.scene.add(ambient, dir1, dir2);
+
+    viewer.gridHelper = new THREE.GridHelper(1000, 40, 0x33506f, 0x1a2634);
+    setGridHelperStyle(viewer.gridHelper);
+    viewer.gridHelper.visible = showGridEl.checked;
+    viewer.scene.add(viewer.gridHelper);
+
+    viewer.axesHelper = new THREE.AxesHelper(120);
+    viewer.scene.add(viewer.axesHelper);
+
+    resizeViewer();
+    viewer.resizeObserver = new ResizeObserver(resizeViewer);
+    viewer.resizeObserver.observe(viewportEl);
+    animate();
+  }
+
+  function resizeViewer() {
+    if (!viewer.renderer || !viewer.camera) return;
+    var width = Math.max(1, viewportEl.clientWidth);
+    var height = Math.max(320, viewportEl.clientHeight);
+    viewer.renderer.setSize(width, height, false);
+    viewer.camera.aspect = width / height;
+    viewer.camera.updateProjectionMatrix();
+  }
+
+  function animate() {
+    viewer.frameId = requestAnimationFrame(animate);
+    if (viewer.controls) viewer.controls.update();
+    if (viewer.renderer && viewer.scene && viewer.camera) viewer.renderer.render(viewer.scene, viewer.camera);
+  }
+
+  function clearSceneObjects() {
+    if (viewer.terrainGroup) {
+      viewer.scene.remove(viewer.terrainGroup);
+      disposeThreeObject(viewer.terrainGroup);
+      viewer.terrainGroup = null;
+    }
+    viewer.pointsObject = null;
+  }
+
+  function disposeThreeObject(obj) {
+    obj.traverse(function (child) {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(function (m) { if (m && m.dispose) m.dispose(); });
+        else if (child.material.dispose) child.material.dispose();
+      }
+    });
+  }
+
+  function colorForElevation(elev, minElevation, maxElevation) {
+    var t = maxElevation > minElevation ? (elev - minElevation) / (maxElevation - minElevation) : 0.5;
+    var color = new THREE.Color();
+    color.setHSL(0.64 - t * 0.48, 0.78, 0.55);
+    return color;
+  }
+
+  function setGridHelperStyle(gridHelper) {
+    var materials = Array.isArray(gridHelper.material) ? gridHelper.material : [gridHelper.material];
+    materials.forEach(function (material) {
+      material.transparent = true;
+      material.opacity = 0.55;
+    });
+  }
+
+  function renderModel(model) {
+    ensureViewer();
+    clearSceneObjects();
+
+    var terrainGroup = new THREE.Group();
+    terrainGroup.scale.y = parseFloat(verticalScaleEl.value) || 1;
+
+    for (var i = 0; i < model.chains.length; i++) {
+      var chain = model.chains[i];
+      if (!chain.points.length || !Number.isFinite(chain.elevation)) continue;
+      var positions = new Float32Array(chain.points.length * 3);
+      for (var j = 0; j < chain.points.length; j++) {
+        var pt = chain.points[j];
+        positions[j * 3] = (pt[0] - model.centerX) / 1000;
+        positions[j * 3 + 1] = chain.elevation - model.minElevation;
+        positions[j * 3 + 2] = (pt[1] - model.centerY) / 1000;
+      }
+      var geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      var material = new THREE.LineBasicMaterial({ color: colorForElevation(chain.elevation, model.minElevation, model.maxElevation) });
+      terrainGroup.add(new THREE.Line(geometry, material));
+    }
+
+    if (model.elevationPoints.length) {
+      var pbuf = new Float32Array(model.elevationPoints.length * 3);
+      var cbuf = new Float32Array(model.elevationPoints.length * 3);
+      for (var p = 0; p < model.elevationPoints.length; p++) {
+        var ep = model.elevationPoints[p];
+        var color = colorForElevation(ep.elevation, model.minElevation, model.maxElevation);
+        pbuf[p * 3] = (ep.x - model.centerX) / 1000;
+        pbuf[p * 3 + 1] = ep.elevation - model.minElevation;
+        pbuf[p * 3 + 2] = (ep.y - model.centerY) / 1000;
+        cbuf[p * 3] = color.r;
+        cbuf[p * 3 + 1] = color.g;
+        cbuf[p * 3 + 2] = color.b;
+      }
+      var pointGeometry = new THREE.BufferGeometry();
+      pointGeometry.setAttribute('position', new THREE.BufferAttribute(pbuf, 3));
+      pointGeometry.setAttribute('color', new THREE.BufferAttribute(cbuf, 3));
+      viewer.pointsObject = new THREE.Points(pointGeometry, new THREE.PointsMaterial({
+        size: 3.2,
+        sizeAttenuation: true,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9
+      }));
+      viewer.pointsObject.visible = showPointsEl.checked;
+      terrainGroup.add(viewer.pointsObject);
+    }
+
+    viewer.scene.add(terrainGroup);
+    viewer.terrainGroup = terrainGroup;
+
+    var size = Math.max(model.extent.widthMeters, model.extent.heightMeters, 50);
+    viewer.gridHelper.geometry.dispose();
+    viewer.scene.remove(viewer.gridHelper);
+    viewer.gridHelper = new THREE.GridHelper(Math.ceil(size / 50) * 50, Math.max(10, Math.min(80, Math.round(size / 25))), 0x33506f, 0x1a2634);
+    setGridHelperStyle(viewer.gridHelper);
+    viewer.gridHelper.visible = showGridEl.checked;
+    viewer.scene.add(viewer.gridHelper);
+    viewer.gridHelper.position.set(0, 0, 0);
+
+    viewer.axesHelper.position.set(-size * 0.42, 0, size * 0.42);
+    viewer.model = model;
+    resetViewerCamera(model);
+    resetBtn.disabled = false;
+    setStats(model);
+    overlayInfoEl.textContent = fmtNum(model.minElevation, 2) + 'm - ' + fmtNum(model.maxElevation, 2) + 'm / ' + model.chains.length.toLocaleString() + '本';
+  }
+
+  function resetViewerCamera(model) {
+    ensureViewer();
+    var size = Math.max(model.extent.widthMeters, model.extent.heightMeters, (model.maxElevation - model.minElevation) * 3, 80);
+    var distance = size * 1.15;
+    viewer.camera.position.set(distance * 0.9, distance * 0.72, distance * 0.9);
+    viewer.controls.target.set(0, ((model.maxElevation - model.minElevation) * (parseFloat(verticalScaleEl.value) || 1)) * 0.25, 0);
+    viewer.controls.update();
+  }
+
+  function parseDxf(text) {
+    var pairs = toDxfPairs(text);
+    var entities = parseDxfEntities(pairs);
+    var contourSegments = [];
+    var contourLabels = [];
+    var elevTexts = [];
+    var elevPointsRaw = [];
+
+    entities.forEach(function (entity) {
+      var layer = (entity.layer || '').trim();
+      if (entity.type === 'LINE' && layer && layer !== 'FRAME') {
+        if (layer !== 'ELEV_POINT' && layer !== 'ELEV_TEXT' && layer !== 'FRAME_LATLON') contourSegments.push(entity);
+      } else if (entity.type === 'TEXT') {
+        var num = parseFloat(String(entity.text).replace(/,/g, ''));
+        if (!Number.isFinite(num)) return;
+        if (layer === 'ELEV_TEXT') elevTexts.push({ x: entity.x, y: entity.y, elevation: num });
+        else if (layer !== 'FRAME' && layer !== 'FRAME_LATLON') contourLabels.push({ x: entity.x, y: entity.y, elevation: num, layer: layer });
+      } else if (entity.type === 'POINT' && layer === 'ELEV_POINT') {
+        elevPointsRaw.push({ x: entity.x, y: entity.y });
+      }
+    });
+
+    var elevationPoints = mergeElevationPoints(elevPointsRaw, elevTexts);
+    if (!contourSegments.length) throw new Error('等高線LINEが見つかりませんでした。');
+
+    var chains = buildContourChains(contourSegments);
+    if (!chains.length) throw new Error('等高線を連結できませんでした。DXF形式を確認してください。');
+
+    assignChainElevations(chains, contourLabels, elevationPoints);
+    chains = chains.filter(function (chain) { return Number.isFinite(chain.elevation) && chain.points.length >= 2; });
+    if (!chains.length) throw new Error('等高線の標高を推定できませんでした。等高線ラベル付きDXFを使用してください。');
+
+    var allElevs = chains.map(function (c) { return c.elevation; }).concat(elevationPoints.map(function (p) { return p.elevation; }));
+    var minElevation = Math.min.apply(null, allElevs);
+    var maxElevation = Math.max.apply(null, allElevs);
+    var bounds = measureChainBounds(chains);
+    return {
+      chains: chains,
+      elevationPoints: elevationPoints,
+      contourLabels: contourLabels,
+      minElevation: minElevation,
+      maxElevation: maxElevation,
+      centerX: (bounds.minX + bounds.maxX) / 2,
+      centerY: (bounds.minY + bounds.maxY) / 2,
+      extent: {
+        widthMeters: (bounds.maxX - bounds.minX) / 1000,
+        heightMeters: (bounds.maxY - bounds.minY) / 1000
+      }
+    };
+  }
+
+  function toDxfPairs(text) {
+    var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    var pairs = [];
+    for (var i = 0; i + 1 < lines.length; i += 2) {
+      pairs.push({ code: parseInt(lines[i].trim(), 10), value: lines[i + 1].trim() });
+    }
+    return pairs;
+  }
+
+  function parseDxfEntities(pairs) {
+    var entities = [];
+    var section = '';
+    for (var i = 0; i < pairs.length; i++) {
+      var pair = pairs[i];
+      if (pair.code === 0 && pair.value === 'SECTION') {
+        var namePair = pairs[i + 1];
+        if (namePair && namePair.code === 2) {
+          section = namePair.value;
+          i += 1;
+        }
+        continue;
+      }
+      if (pair.code === 0 && pair.value === 'ENDSEC') {
+        section = '';
+        continue;
+      }
+      if (section !== 'ENTITIES' || pair.code !== 0) continue;
+      var entity = { type: pair.value };
+      var j = i + 1;
+      while (j < pairs.length && pairs[j].code !== 0) {
+        var code = pairs[j].code;
+        var value = pairs[j].value;
+        if (code === 8) entity.layer = value;
+        else if (code === 10) entity.x = parseFloat(value);
+        else if (code === 20) entity.y = parseFloat(value);
+        else if (code === 30) entity.z = parseFloat(value);
+        else if (code === 11) entity.x2 = parseFloat(value);
+        else if (code === 21) entity.y2 = parseFloat(value);
+        else if (code === 31) entity.z2 = parseFloat(value);
+        else if (code === 1) entity.text = value;
+        else if (code === 40) entity.height = parseFloat(value);
+        j++;
+      }
+      entities.push(entity);
+      i = j - 1;
+    }
+    return entities;
+  }
+
+  function mergeElevationPoints(rawPoints, elevTexts) {
+    var used = new Array(rawPoints.length).fill(false);
+    var merged = [];
+    elevTexts.forEach(function (text) {
+      var bestIdx = -1;
+      var bestDistSq = Infinity;
+      for (var i = 0; i < rawPoints.length; i++) {
+        if (used[i]) continue;
+        var dx = rawPoints[i].x - text.x;
+        var dy = rawPoints[i].y - text.y;
+        var distSq = dx * dx + dy * dy;
+        if (distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx >= 0 && bestDistSq <= 12000000) {
+        used[bestIdx] = true;
+        merged.push({ x: rawPoints[bestIdx].x, y: rawPoints[bestIdx].y, elevation: text.elevation });
+      } else {
+        merged.push({ x: text.x, y: text.y, elevation: text.elevation });
+      }
+    });
+    for (var i = 0; i < rawPoints.length; i++) {
+      if (!used[i]) merged.push({ x: rawPoints[i].x, y: rawPoints[i].y, elevation: NaN });
+    }
+    return merged.filter(function (p) { return Number.isFinite(p.elevation); });
+  }
+
+  function buildContourChains(segments) {
+    var byLayer = new Map();
+    segments.forEach(function (seg) {
+      if (!Number.isFinite(seg.x) || !Number.isFinite(seg.y) || !Number.isFinite(seg.x2) || !Number.isFinite(seg.y2)) return;
+      var clone = {
+        layer: seg.layer,
+        a: [seg.x, seg.y],
+        b: [seg.x2, seg.y2],
+        used: false
+      };
+      if (!byLayer.has(seg.layer)) byLayer.set(seg.layer, []);
+      byLayer.get(seg.layer).push(clone);
+    });
+
+    var chains = [];
+    byLayer.forEach(function (layerSegments, layer) {
+      var nodeMap = new Map();
+      layerSegments.forEach(function (seg, idx) {
+        seg.aKey = quantizePoint(seg.a);
+        seg.bKey = quantizePoint(seg.b);
+        if (!nodeMap.has(seg.aKey)) nodeMap.set(seg.aKey, []);
+        if (!nodeMap.has(seg.bKey)) nodeMap.set(seg.bKey, []);
+        nodeMap.get(seg.aKey).push(idx);
+        nodeMap.get(seg.bKey).push(idx);
+      });
+
+      nodeMap.forEach(function (indices, key) {
+        if (indices.length !== 2) {
+          indices.forEach(function (segIdx) {
+            if (!layerSegments[segIdx].used) chains.push(walkChain(layerSegments, nodeMap, segIdx, key, layer));
+          });
+        }
+      });
+
+      for (var i = 0; i < layerSegments.length; i++) {
+        if (!layerSegments[i].used) chains.push(walkChain(layerSegments, nodeMap, i, layerSegments[i].aKey, layer));
+      }
+    });
+    return chains.filter(function (chain) { return chain && chain.points.length >= 2; });
+  }
+
+  function walkChain(segments, nodeMap, startIdx, startKey, layer) {
+    var points = [];
+    var seg = segments[startIdx];
+    if (seg.used) return null;
+    var currentKey = startKey;
+    var guard = 0;
+    while (seg && !seg.used && guard < segments.length + 4) {
+      guard++;
+      seg.used = true;
+      var from = seg.aKey === currentKey ? seg.a : seg.b;
+      var to = seg.aKey === currentKey ? seg.b : seg.a;
+      if (!points.length) points.push(from);
+      points.push(to);
+      currentKey = seg.aKey === currentKey ? seg.bKey : seg.aKey;
+      var nextSeg = null;
+      var incident = nodeMap.get(currentKey) || [];
+      for (var i = 0; i < incident.length; i++) {
+        var candidate = segments[incident[i]];
+        if (!candidate.used) {
+          nextSeg = candidate;
+          break;
+        }
+      }
+      seg = nextSeg;
+    }
+    return {
+      layer: layer,
+      points: dedupeSequentialPoints(points),
+      elevation: NaN
+    };
+  }
+
+  function dedupeSequentialPoints(points) {
+    var out = [];
+    for (var i = 0; i < points.length; i++) {
+      var prev = out[out.length - 1];
+      if (!prev || Math.abs(prev[0] - points[i][0]) > 0.001 || Math.abs(prev[1] - points[i][1]) > 0.001) out.push(points[i]);
+    }
+    return out;
+  }
+
+  function quantizePoint(pt) {
+    return pt[0].toFixed(3) + ',' + pt[1].toFixed(3);
+  }
+
+  function assignChainElevations(chains, labels, elevationPoints) {
+    var interval = inferContourInterval(labels, elevationPoints);
+    chains.forEach(function (chain) {
+      var nearest = findNearestLabelForChain(chain, labels);
+      if (nearest) {
+        chain.elevation = nearest.elevation;
+        return;
+      }
+      var estimated = estimateElevationFromPoints(chain, elevationPoints, interval);
+      if (Number.isFinite(estimated)) chain.elevation = estimated;
+    });
+  }
+
+  function inferContourInterval(labels, elevationPoints) {
+    var values = labels.map(function (l) { return l.elevation; }).filter(Number.isFinite).sort(function (a, b) { return a - b; });
+    var best = Infinity;
+    for (var i = 1; i < values.length; i++) {
+      var diff = Math.abs(values[i] - values[i - 1]);
+      if (diff > 0.0001 && diff < best) best = diff;
+    }
+    if (Number.isFinite(best)) return best;
+    if (elevationPoints.length >= 2) {
+      var v = Math.abs(elevationPoints[1].elevation - elevationPoints[0].elevation);
+      if (v > 0.0001) return Math.max(0.5, Math.round(v * 2) / 2);
+    }
+    return 1;
+  }
+
+  function findNearestLabelForChain(chain, labels) {
+    var best = null;
+    var bestDistSq = Infinity;
+    for (var i = 0; i < labels.length; i++) {
+      var label = labels[i];
+      if (label.layer !== chain.layer) continue;
+      var distSq = pointToPolylineDistSq(label.x, label.y, chain.points);
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        best = label;
+      }
+    }
+    if (!best) return null;
+    var threshold = Math.max(3000, Math.min(20000, measurePolylineLength(chain.points) * 0.25));
+    return bestDistSq <= threshold * threshold ? best : null;
+  }
+
+  function estimateElevationFromPoints(chain, elevationPoints, interval) {
+    if (!elevationPoints.length) return NaN;
+    var scored = [];
+    var cx = 0;
+    var cy = 0;
+    for (var i = 0; i < chain.points.length; i++) {
+      cx += chain.points[i][0];
+      cy += chain.points[i][1];
+    }
+    cx /= chain.points.length;
+    cy /= chain.points.length;
+    for (var j = 0; j < elevationPoints.length; j++) {
+      var ep = elevationPoints[j];
+      var dx = ep.x - cx;
+      var dy = ep.y - cy;
+      scored.push({ distSq: dx * dx + dy * dy, elevation: ep.elevation });
+    }
+    scored.sort(function (a, b) { return a.distSq - b.distSq; });
+    var take = Math.min(8, scored.length);
+    var sum = 0;
+    var wsum = 0;
+    for (var k = 0; k < take; k++) {
+      var w = 1 / Math.max(1, Math.sqrt(scored[k].distSq));
+      sum += scored[k].elevation * w;
+      wsum += w;
+    }
+    if (!wsum) return NaN;
+    var est = sum / wsum;
+    return Math.round(est / interval) * interval;
+  }
+
+  function measureChainBounds(chains) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    chains.forEach(function (chain) {
+      chain.points.forEach(function (pt) {
+        if (pt[0] < minX) minX = pt[0];
+        if (pt[1] < minY) minY = pt[1];
+        if (pt[0] > maxX) maxX = pt[0];
+        if (pt[1] > maxY) maxY = pt[1];
+      });
+    });
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+  }
+
+  function pointToPolylineDistSq(x, y, points) {
+    var best = Infinity;
+    for (var i = 1; i < points.length; i++) {
+      var distSq = pointSegmentDistSq(x, y, points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+      if (distSq < best) best = distSq;
+    }
+    return best;
+  }
+
+  function pointSegmentDistSq(px, py, ax, ay, bx, by) {
+    var abx = bx - ax;
+    var aby = by - ay;
+    var lenSq = abx * abx + aby * aby;
+    if (lenSq === 0) {
+      var dx0 = px - ax;
+      var dy0 = py - ay;
+      return dx0 * dx0 + dy0 * dy0;
+    }
+    var t = ((px - ax) * abx + (py - ay) * aby) / lenSq;
+    t = clamp(t, 0, 1);
+    var dx = px - (ax + abx * t);
+    var dy = py - (ay + aby * t);
+    return dx * dx + dy * dy;
+  }
+
+  function measurePolylineLength(points) {
+    var len = 0;
+    for (var i = 1; i < points.length; i++) {
+      var dx = points[i][0] - points[i - 1][0];
+      var dy = points[i][1] - points[i - 1][1];
+      len += Math.sqrt(dx * dx + dy * dy);
+    }
+    return len;
+  }
+
+  loadBtn.addEventListener('click', async function () {
+    if (!dxfFile) return;
+    hideMessages();
+    setStatus('dxf3dStatusBar', 'sb-work', 'DXFを解析中...');
+    try {
+      setProgress(10, 'DXFテキストを読込中...');
+      await uiYield();
+      var text = await dxfFile.text();
+      setProgress(35, 'エンティティを解析中...');
+      await uiYield();
+      var model = parseDxf(text);
+      setProgress(72, '3Dモデルを生成中...');
+      await uiYield();
+      renderModel(model);
+      setProgress(100, '3D表示完了');
+      successBox.innerHTML = '3D表示を更新しました: <b>' + escapeHtml(dxfFile.name) + '</b><br>' +
+        '等高線 ' + model.chains.length.toLocaleString() + '本 / 標高点 ' + model.elevationPoints.length.toLocaleString() + '点';
+      successBox.style.display = 'block';
+      setStatus('dxf3dStatusBar', 'sb-ok', '3D表示完了。マウスで自由に回転・拡大縮小できます');
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.style.display = 'block';
+      setStatus('dxf3dStatusBar', 'sb-err', '3D表示に失敗しました。DXF形式を確認してください');
+      console.error(err);
+    }
+  });
+
+  window.initDxf3dViewer = function () {
+    try { ensureViewer(); } catch (err) { console.error(err); }
+  };
+})();
+
 /* -------------------- 座標TXT → DXF -------------------- */
 (function () {
   var coordTxtFile = null;
@@ -2992,6 +3824,8 @@ function buildDxf({ layers, extents, entities }) {
   return out.join('\n');
 }
 </script>
+<script src="https://unpkg.com/three@0.124.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.124.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 /* -------------------- DEM file range picker -------------------- */
@@ -3534,6 +4368,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
     if (btn.dataset.tab === 'demSearchPanel') setTimeout(_initDemMap, 120);
     if (btn.dataset.tab === 'chibanPanel') setTimeout(_initChibanMap, 120);
+    if (btn.dataset.tab === 'dxf3dPanel' && typeof window.initDxf3dViewer === 'function') setTimeout(window.initDxf3dViewer, 120);
   });
 });
 
