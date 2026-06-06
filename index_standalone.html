@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -367,14 +367,12 @@ input[type="file"] { display: none; }
 <div class="app">
   <div class="hero">
     <h1>地図XML / 標高データ DXF変換</h1>
-    <p>法務省の地籍図XML・国土地理院の標高データ・地積測量図の座標一覧を、JW-CAD / JWW で開ける <b>DXF R12</b> 形式に変換するブラウザ完結型ツールです。インストール不要、サーバー不要。全処理はブラウザ内で完結します。</p>
-    <p style="margin-top:6px;font-size:.85rem;opacity:.7">① 地図XML→DXF　② 標高データ→DXF（等高線）　③ DEM検索（ファイル入手案内）　④ 座標TXT→DXF（地積測量図）</p>
   </div>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="coordPanel">① 地図XML → DXF</button>
-    <button class="tab-btn" data-tab="elevPanel">② 標高データ → DXF</button>
-    <button class="tab-btn" data-tab="demSearchPanel">③ DEM 検索</button>
+    <button class="tab-btn" data-tab="demSearchPanel">② DEM 検索</button>
+    <button class="tab-btn" data-tab="elevPanel">③ 標高データ → DXF</button>
     <button class="tab-btn" data-tab="coordTxtPanel">④ 座標TXT → DXF</button>
     <button class="tab-btn" data-tab="chibanPanel">⑤ 地番検索</button>
   </div>
@@ -420,7 +418,7 @@ input[type="file"] { display: none; }
             法務省が公開している<b>地籍図XML</b>（不動産登記の地図データ）を、JW-CAD / JWW で読み込める <b>DXF R12</b> 形式に変換します。土地の境界線・地番・筆界点などをCADデータとして利用したいときに使います。インターネット接続は不要です。</p>
             <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
             <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
-              <li>法務省「登記所備付地図データ」サイトで対象地域のXMLまたはZIPをダウンロード</li>
+              <li>法務省「登記所備付地図データ」サイト（<a href="https://front.geospatial.jp/" target="_blank" rel="noopener noreferrer">https://front.geospatial.jp/</a>）で対象地域のXMLまたはZIPをダウンロード</li>
               <li>左のドロップゾーンにファイルをドラッグ＆ドロップ（またはクリックして選択）</li>
               <li>「DXF変換」ボタンをクリック</li>
               <li>変換完了後、DXFファイルが自動ダウンロードされます</li>
@@ -451,10 +449,7 @@ input[type="file"] { display: none; }
         <div>
           <div class="section">
             <h2>データソース</h2>
-            <div style="display:flex;gap:24px;margin-bottom:10px">
-              <label class="check"><input type="radio" name="elevSrc" value="tile" id="elevSrcTile"> 地理院タイルAPI</label>
-              <label class="check"><input type="radio" name="elevSrc" value="file" id="elevSrcFile" checked> 基盤地図情報DEMファイル</label>
-            </div>
+            <p class="hint" style="margin-bottom:10px">基盤地図情報DEMファイルを読み込んで等高線DXFを作成します。</p>
             <div id="demFileArea" style="display:block">
               <p class="hint" style="margin-bottom:8px">FG-GML-XXXXXX-DEM1A-XXXXXXXX.zip をドロップ</p>
               <div class="drop-zone" id="demFileDrop" style="padding:20px 16px">
@@ -493,12 +488,13 @@ input[type="file"] { display: none; }
             <input id="elevAddrInput" type="text">
             <button id="elevAddrBtn" type="button"></button>
             <button id="loadRangeFromXmlBtn" type="button"></button>
+            <input id="elevSrcFile" type="hidden" value="1">
             <input type="file" id="rangeFileInput" accept=".xml,.zip">
             <div id="rangeFileBadge"><div class="info"><div id="rangeFileName"></div><div id="rangeFileSize"></div></div><button id="rangeRemoveBtn" type="button"></button></div>
             <div id="rangeWarnBox"></div>
           </div>
 
-          <div class="section" id="tileApiSection" style="display:none">
+          <div class="section" id="tileApiSection" style="display:none" aria-hidden="true">
             <h2>Step 2. DL前確認</h2>
             <div class="field-grid three">
               <div class="field">
@@ -534,18 +530,9 @@ input[type="file"] { display: none; }
             <p class="hint"><b>【目的】</b><br>
             国土地理院の<b>標高データ</b>をもとに、等高線（計曲線・主等高線）と標高点を含む DXF ファイルを生成します。地形図の作成・造成計画の基図・切土盛土の検討などに使います。</p>
             <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
-            <p class="hint" style="margin-top:4px">データソースを2種類から選んで使用します。</p>
-            <p class="hint" style="margin-top:6px"><b>● 地理院タイルAPI（インターネット必要）</b></p>
-            <ol class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:2px">
-              <li>「地理院タイルAPI」を選択</li>
-              <li>緯度経度の範囲を入力（または③DEM検索タブから転送）</li>
-              <li>「DL前確認」で取得タイル数・容量を確認</li>
-              <li>等高線間隔などを設定し「標高DXFを作成」をクリック</li>
-            </ol>
             <p class="hint" style="margin-top:8px"><b>● 基盤地図情報DEMファイル（オフライン可）</b></p>
             <ol class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:2px">
-              <li>「基盤地図情報DEMファイル」を選択</li>
-              <li>③DEM検索タブで入手した ZIP をドロップ</li>
+              <li>②DEM検索タブで入手した ZIP をドロップ</li>
               <li>範囲地図で変換範囲を確認・調整</li>
               <li>等高線間隔などを設定し「標高DXFを作成」をクリック</li>
             </ol>
@@ -648,13 +635,23 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           <div id="contourLayerRows" style="display:grid;gap:4px"></div>
           <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:6px">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
-              <label class="hint" style="font-size:.82rem">（B）標高点・標高値テキスト</label>
+              <label class="hint" style="font-size:.82rem">（B）標高点</label>
               <input type="text" id="elevPointLayerName" value="ELEV_POINT" placeholder="レイヤ名"
                 style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
-              <label class="hint" style="font-size:.82rem">（C）枠・四隅 LATLON</label>
+              <label class="hint" style="font-size:.82rem">（C）標高値テキスト</label>
+              <input type="text" id="elevTextLayerName" value="ELEV_TEXT" placeholder="レイヤ名"
+                style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
+              <label class="hint" style="font-size:.82rem">（D）枠</label>
               <input type="text" id="frameLayerName" value="FRAME" placeholder="レイヤ名"
+                style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
+              <label class="hint" style="font-size:.82rem">（E）四隅 LATLON</label>
+              <input type="text" id="frameTextLayerName" value="FRAME_LATLON" placeholder="レイヤ名"
                 style="min-height:32px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:#0d1420;color:var(--text);font-size:.85rem">
             </div>
           </div>
@@ -669,7 +666,7 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
         </div>
         <div class="message error" id="elevErrorBox"></div>
         <div class="message success" id="elevSuccessBox"></div>
-        <div class="status-bar sb-hint" id="elevStatusBar">DEMファイル（ZIP）をドロップするか、地理院タイルAPIの変換範囲を設定してください</div>
+        <div class="status-bar sb-hint" id="elevStatusBar">DEMファイル（ZIP / XML）をドロップしてください</div>
       </div>
     </section>
     <section class="panel" id="demSearchPanel">
@@ -681,7 +678,7 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           <div class="section">
             <h2>目的と使い方</h2>
             <p class="hint"><b>【目的】</b><br>
-            ②標高タブの「基盤地図情報DEMファイル」で使用する ZIP ファイルを特定・入手するためのタブです。国土地理院の数値標高モデル（DEM）は <b>2次メッシュ</b>（約10km 四方）単位で ZIP 配布されており、変換したい地域のメッシュを地図上で選んでダウンロードサービスに誘導します。</p>
+            ③標高タブの「基盤地図情報DEMファイル」で使用する ZIP ファイルを特定・入手するためのタブです。国土地理院の数値標高モデル（DEM）は <b>2次メッシュ</b>（約10km 四方）単位で ZIP 配布されており、変換したい地域のメッシュを地図上で選んでダウンロードサービスに誘導します。</p>
             <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
             <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
               <li>「住所・地名」に対象地域を入力して「検索」</li>
@@ -690,7 +687,7 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
               <li>目的のメッシュをクリックして選択（青色表示）</li>
               <li>「基盤地図情報サービスを開く」でダウンロードサービスへ</li>
               <li>ログイン後に対象メッシュの ZIP をダウンロード</li>
-              <li>②標高タブに ZIP をドロップして等高線DXFを作成</li>
+              <li>③標高タブに ZIP をドロップして等高線DXFを作成</li>
             </ol>
             <p class="hint" style="margin-top:6px">※ダウンロードには <b>service.gsi.go.jp</b> への無償ユーザー登録が必要です。</p>
           </div>
@@ -722,9 +719,9 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
             <h2>選択メッシュ</h2>
             <div id="demMeshList"><p class="hint">地図上のセルをクリックして選択</p></div>
             <div id="demDlRow" class="btn-row" style="display:none;flex-direction:column;gap:8px;margin-top:10px">
-              <button class="btn" id="demToElevBtn" type="button">このエリアを標高タブで変換（タイルAPI）</button>
+              <button class="btn" id="demDlBtn" type="button">基盤地図情報サービスを開く</button>
+              <button class="btn secondary" id="demToElevBtn" type="button">このエリアを標高タブへ反映</button>
               <button class="btn secondary" id="demAutoDownloadBtn" type="button">ZIP自動DL試行（要ログイン済み）</button>
-              <button class="btn secondary" id="demDlBtn" type="button">基盤地図情報サービスを開く</button>
               <button class="btn secondary" id="demClearBtn" type="button">選択をクリア</button>
             </div>
             <div class="message warn" id="demAutoDownloadWarn"></div>
@@ -1215,13 +1212,20 @@ function escapeHtml(s) {
     "'": '&#39;'
   }[ch]));
 }
-function timestampedFilename(filename) {
+function timestampedFilename(filename, suffix = '') {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const dt = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) +
              '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
   const dot = filename.lastIndexOf('.');
-  return dot < 0 ? filename + '_' + dt : filename.slice(0, dot) + '_' + dt + filename.slice(dot);
+  return dot < 0
+    ? filename + '_' + dt + suffix
+    : filename.slice(0, dot) + '_' + dt + suffix + filename.slice(dot);
+}
+function compactFilenameNumber(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  return s.replace('.', '');
 }
 function setStatus(id, cls, msg) {
   const el = document.getElementById(id);
@@ -1950,10 +1954,11 @@ precheckBtn.addEventListener('click', () => {
   try {
     hideElevationMessages();
     const bbox = readBboxInputs();
-    const demType = demTypeEl.value;
-    const zoom = parseInt(demZoomEl.value, 10);
-    const sampleStepMeters = Math.max(1, parseFloat(sampleStepMetersEl.value) || 1);
-    lastPrecheck = buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters);
+    
+    lastPrecheck = {
+      widthMeters: lonDistanceMeters(bbox.west, bbox.east, (bbox.south + bbox.north) / 2),
+      heightMeters: latDistanceMeters(bbox.south, bbox.north)
+    };
     renderPrecheckSummary([
       { label: 'タイル数', value: `${lastPrecheck.tileCount} 枚（${lastPrecheck.tileCols} × ${lastPrecheck.tileRows}）` },
       { label: '推定解像度', value: `${fmtNum(lastPrecheck.resolutionMeters, 2)} m / pixel` },
@@ -2000,9 +2005,7 @@ function buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters) {
 
 const _baseBuildPrecheckInfo = buildPrecheckInfo;
 buildPrecheckInfo = function(bbox, demType, zoom, sampleStepMeters) {
-  if (!document.getElementById('elevSrcFile').checked) {
-    return _baseBuildPrecheckInfo(bbox, demType, zoom, sampleStepMeters);
-  }
+  
   const tileX0 = lon2tileX(bbox.west, zoom);
   const tileX1 = lon2tileX(bbox.east, zoom);
   const tileY0 = lat2tileY(bbox.north, zoom);
@@ -2095,9 +2098,8 @@ function parseDemGml(xmlText) {
     const v = comma >= 0 ? parseFloat(line.slice(comma + 1)) : parseFloat(line);
     if (!isFinite(v) || v >= 9000 || v <= -9000) { cellIdx++; continue; }
     const col = cellIdx % cols;
-    const southRowIdx = Math.floor(cellIdx / cols);
-    const northRow = rows - 1 - southRowIdx;
-    raster[northRow * cols + col] = v;
+    const rowFromNorth = Math.floor(cellIdx / cols);
+    raster[rowFromNorth * cols + col] = v;
     cellIdx++;
   }
   return {
@@ -2334,7 +2336,7 @@ setDemFile = async function(file) {
         document.getElementById('bboxSouth').value = fullExtent.south.toFixed(6);
         document.getElementById('bboxNorth').value = fullExtent.north.toFixed(6);
       }
-    } catch (e) {
+  } catch (e) {
       console.warn('DEM extent detection failed:', e);
     }
   }
@@ -2358,46 +2360,34 @@ demFileRemove.addEventListener('click', () => {
   });
 });
 
-document.querySelectorAll('input[name="elevSrc"]').forEach(r => r.addEventListener('change', () => {
-  const useFile = document.getElementById('elevSrcFile').checked;
-  demFileArea.style.display = useFile ? 'block' : 'none';
-  tileApiSec.style.display  = useFile ? 'none'  : 'block';
-  if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
-  setStatus('elevStatusBar', 'sb-hint', useFile
-    ? 'DEMファイル（ZIP）をドロップしてください'
-    : '緯度経度の変換範囲を入力して「標高DXFを作成」をクリックしてください');
-}));
+if (typeof window.updateDemFileRangeUi === 'function') window.updateDemFileRangeUi();
+setStatus('elevStatusBar', 'sb-hint', 'DEMファイル（ZIP / XML）をドロップしてください');
 
 elevConvertBtn.addEventListener('click', async () => {
   hideElevationMessages();
   setStatus('elevStatusBar', 'sb-work', '変換中...');
   try {
     const bbox = readBboxInputs();
-    const demType = demTypeEl.value;
-    const zoom = parseInt(demZoomEl.value, 10);
+    
     const contourInterval = parseFloat(contourIntervalEl.value);
     const majorEvery = parseFloat(majorEveryEl.value);
     const pointSpacing = parseFloat(pointSpacingEl.value);
-    const sampleStepMeters = Math.max(1, parseFloat(sampleStepMetersEl.value) || 1);
-    lastPrecheck = buildPrecheckInfo(bbox, demType, zoom, sampleStepMeters);
+    lastPrecheck = {
+      widthMeters: lonDistanceMeters(bbox.west, bbox.east, (bbox.south + bbox.north) / 2),
+      heightMeters: latDistanceMeters(bbox.south, bbox.north)
+    };
 
     elevConvertBtn.disabled = true;
     setElevationProgress(5, 'タイル範囲を計算中...');
     await uiYield();
 
-    const useFile = document.getElementById('elevSrcFile').checked;
     let raster;
-    if (useFile) {
-      if (!demFileRaster || !demFileRaster._file) throw new Error('DEMファイルを選択してください');
-      const bbox = (() => { try { return readBboxInputs(); } catch { return null; } })();
-      /* 20〜80% をDEMファイル処理に割り当て */
-      const demCb = (pct, msg) => setElevationProgress(20 + Math.round(pct * 0.6), msg);
-      raster = await parseDemZipToRaster(demFileRaster._file, bbox, demCb);
-      setElevationProgress(80, `DEMファイル読み込み完了`);
-      await uiYield();
-    } else {
-      raster = await fetchDemRaster(lastPrecheck, setElevationProgress);
-    }
+    if (!demFileRaster || !demFileRaster._file) throw new Error('DEMファイルを選択してください');
+    const bboxForFile = (() => { try { return readBboxInputs(); } catch { return null; } })();
+    const demCb = (pct, msg) => setElevationProgress(20 + Math.round(pct * 0.6), msg);
+    raster = await parseDemZipToRaster(demFileRaster._file, bboxForFile, demCb);
+    setElevationProgress(80, 'DEMファイルを読み込みました');
+    await uiYield();
 
     /* 公共座標系変換を raster に追加（X=北向き, Y=東向き, mm単位） */
     const zoneFromUi = parseInt(document.getElementById('coordZone').value, 10) || 0;
@@ -2412,9 +2402,9 @@ elevConvertBtn.addEventListener('click', async () => {
     const levels = buildContourLevels(raster.minElevation, raster.maxElevation, contourInterval);
 
     /* DEMファイルモードは80%以降、タイルAPIは70%以降を使用 */
-    const p1 = useFile ? 82 : 70;
-    const p2 = useFile ? 93 : 85;
-    const p3 = useFile ? 96 : 92;
+    const p1 = 82;
+    const p2 = 93;
+    const p3 = 96;
     /* 等高線生成: p1〜p2 の範囲でレベルごとに進捗表示 */
     const contourCb = (pct, msg) => setElevationProgress(p1 + Math.round(pct * (p2 - p1) / 100), msg);
     const contourSegments = await generateContours(raster, levels, contourCb);
@@ -2431,19 +2421,30 @@ elevConvertBtn.addEventListener('click', async () => {
     await uiYield();
     const layerDefs = readContourLayerDefs();
     const elevPointLayer = (document.getElementById('elevPointLayerName').value.trim()) || 'ELEV_POINT';
+    const elevTextLayer  = (document.getElementById('elevTextLayerName').value.trim())  || 'ELEV_TEXT';
     const frameLayer     = (document.getElementById('frameLayerName').value.trim())     || 'FRAME';
+    const frameTextLayer = (document.getElementById('frameTextLayerName').value.trim()) || 'FRAME_LATLON';
     const dxf = generateElevationDxf({
       raster,
       contourSegments,
       layerDefs,
       elevPointLayer,
+      elevTextLayer,
       frameLayer,
+      frameTextLayer,
       elevPoints,
       includePointLabels: includePointLabelsEl.checked,
       includeContourLabels: includeContourLabelsEl.checked
     });
 
-    const filename = timestampedFilename(`elevation_${demType}_z${zoom}.dxf`);
+    const filenameSuffix =
+      `_CL${compactFilenameNumber(contourIntervalEl.value)}` +
+      `P${compactFilenameNumber(majorEveryEl.value)}` +
+      `Dis${compactFilenameNumber(pointSpacingEl.value)}`;
+    const baseFilename = demFileRaster && demFileRaster._file
+      ? demFileRaster._file.name.replace(/\.[^.]+$/, '') + '.dxf'
+      : 'elevation_dem_file.dxf';
+    const filename = timestampedFilename(baseFilename, filenameSuffix);
     downloadTextFile(filename, dxf);
     elevSuccessBox.innerHTML =
       `標高DXFを出力しました: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([dxf]).size)}）<br>` +
@@ -2665,7 +2666,9 @@ function generateElevationDxf(opts) {
     contourSegments,
     layerDefs,
     elevPointLayer = 'ELEV_POINT',
+    elevTextLayer  = 'ELEV_TEXT',
     frameLayer     = 'FRAME',
+    frameTextLayer = 'FRAME_LATLON',
     elevPoints,
     includePointLabels,
     includeContourLabels
@@ -2694,7 +2697,9 @@ function generateElevationDxf(opts) {
     layers: [
       ...uniqueContourLayers,
       [elevPointLayer, 2],
-      [frameLayer, 7]
+      [elevTextLayer, 2],
+      [frameLayer, 7],
+      [frameTextLayer, 7]
     ],
     extents,
     entities: writer => {
@@ -2735,13 +2740,13 @@ function generateElevationDxf(opts) {
         const [cx, cy] = corners[i];
         const { lon, lat } = bboxCoords[i];
         const yOff = cornerDirs[i];
-        writer.text(frameLayer, cx, cy + yOff * th * 1.2, th, `lat:${lat.toFixed(6)}`, 1, 2);
-        writer.text(frameLayer, cx, cy + yOff * th * 2.5, th, `lon:${lon.toFixed(6)}`, 1, 2);
+        writer.text(frameTextLayer, cx, cy + yOff * th * 1.2, th, `lat:${lat.toFixed(6)}`, 1, 2);
+        writer.text(frameTextLayer, cx, cy + yOff * th * 2.5, th, `lon:${lon.toFixed(6)}`, 1, 2);
       }
 
       for (const p of elevPoints) {
         writer.point(elevPointLayer, p.x, p.y);
-        if (includePointLabels) writer.text(elevPointLayer, p.x + textHeight, p.y + textHeight, textHeight * 0.7, p.elevation.toFixed(2));
+        if (includePointLabels) writer.text(elevTextLayer, p.x + textHeight, p.y + textHeight, textHeight * 0.7, p.elevation.toFixed(2));
       }
     }
   });
@@ -3162,10 +3167,9 @@ window.ensureDemFileRangeMap = function() {
 };
 
 window.updateDemFileRangeUi = function() {
-  var useFile = document.getElementById('elevSrcFile').checked;
   var section = document.getElementById('demFileRangeSection');
   var info = document.getElementById('demRangeInfo');
-  var show = useFile && !!demFileExtent;
+  var show = !!demFileExtent;
   section.style.display = show ? 'block' : 'none';
   if (!show) return;
 
@@ -3344,7 +3348,7 @@ document.getElementById('demDlBtn').addEventListener('click', function() {
     '4. ZIPをダウンロード\n\n' +
     '対象メッシュコード（クリップボードにコピー済）:\n' + codeStr
   );
-  setStatus('demStatusBar', 'sb-ok', 'ダウンロードしたZIPを「② 標高データ → DXF」タブにドロップして変換してください');
+  setStatus('demStatusBar', 'sb-ok', 'ダウンロードしたZIPを「③ 標高データ → DXF」タブにドロップして変換してください');
 });
 
 /* ---- 標高タブの住所検索 ---- */
@@ -3383,10 +3387,6 @@ document.getElementById('demToElevBtn').addEventListener('click', function() {
   document.getElementById('bboxEast').value  = east.toFixed(6);
   document.getElementById('bboxSouth').value = south.toFixed(6);
   document.getElementById('bboxNorth').value = north.toFixed(6);
-  /* タイルAPIモードに切り替え */
-  document.getElementById('elevSrcTile').checked = true;
-  document.getElementById('demFileArea').style.display  = 'none';
-  document.getElementById('tileApiSection').style.display = 'block';
   /* 標高タブへ切り替え */
   document.querySelectorAll('.tab-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.tab === 'elevPanel');
@@ -3508,9 +3508,13 @@ function _updateLayerListPanel() {
       escapeHtml(d.name) + ': ' + d.interval + 'm等高線</li>';
   });
   var epName = (document.getElementById('elevPointLayerName') || {}).value || 'ELEV_POINT';
+  var etName = (document.getElementById('elevTextLayerName') || {}).value || 'ELEV_TEXT';
   var frName = (document.getElementById('frameLayerName') || {}).value || 'FRAME';
-  rows.push('<li><span class="dot" style="background:#f6ad55"></span>' + escapeHtml(epName) + ': 標高点・標高値テキスト</li>');
-  rows.push('<li><span class="dot" style="background:#e2e8f0"></span>' + escapeHtml(frName) + ': 枠・四隅 LATLON</li>');
+  var ftName = (document.getElementById('frameTextLayerName') || {}).value || 'FRAME_LATLON';
+  rows.push('<li><span class="dot" style="background:#f6ad55"></span>' + escapeHtml(epName) + ': 標高点</li>');
+  rows.push('<li><span class="dot" style="background:#ed8936"></span>' + escapeHtml(etName) + ': 標高値テキスト</li>');
+  rows.push('<li><span class="dot" style="background:#e2e8f0"></span>' + escapeHtml(frName) + ': 枠</li>');
+  rows.push('<li><span class="dot" style="background:#a0aec0"></span>' + escapeHtml(ftName) + ': 四隅 LATLON</li>');
   list.innerHTML = rows.join('');
 }
 
@@ -3519,7 +3523,9 @@ document.getElementById('addContourLayerBtn').addEventListener('click', function
   _updateLayerListPanel();
 });
 document.getElementById('elevPointLayerName').addEventListener('input', _updateLayerListPanel);
+document.getElementById('elevTextLayerName').addEventListener('input', _updateLayerListPanel);
 document.getElementById('frameLayerName').addEventListener('input', _updateLayerListPanel);
+document.getElementById('frameTextLayerName').addEventListener('input', _updateLayerListPanel);
 
 _initContourLayerTable();
 
@@ -3692,3 +3698,4 @@ async function _searchChibanAddr() {
 </script>
 </body>
 </html>
+
