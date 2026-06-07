@@ -90,6 +90,10 @@ body {
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
   gap: 24px;
 }
+#dxf3dPanel .panel-grid {
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, .5fr);
+  gap: 20px;
+}
 .section {
   background: rgba(255,255,255,.02);
   border: 1px solid var(--line);
@@ -353,14 +357,15 @@ input[type="file"] { display: none; }
 .dem-mesh-tip::before, .dem-mesh-tip::after { display: none !important; }
 .viewer-shell {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 .viewer-3d {
   position: relative;
-  min-height: 560px;
+  min-height: clamp(620px, 72vh, 920px);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 18px 60px rgba(0,0,0,.28);
   background:
     radial-gradient(circle at top left, rgba(99,179,237,.12), transparent 24%),
     linear-gradient(180deg, #09101a, #05070b 72%);
@@ -388,6 +393,110 @@ input[type="file"] { display: none; }
   color: #cbd5e1;
   font-size: .78rem;
   backdrop-filter: blur(6px);
+}
+.viewer-compass {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 108px;
+  height: 132px;
+  padding: 10px 10px 12px;
+  border-radius: 18px;
+  background: rgba(9,16,26,.82);
+  border: 1px solid rgba(148,163,184,.22);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 14px 32px rgba(0,0,0,.22);
+  pointer-events: none;
+}
+.viewer-compass-rose {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 1px solid rgba(148,163,184,.28);
+  background:
+    radial-gradient(circle at center, rgba(99,179,237,.18), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+  transition: transform .12s linear;
+}
+.viewer-compass-rose::before,
+.viewer-compass-rose::after {
+  content: '';
+  position: absolute;
+  inset: 50%;
+  background: rgba(148,163,184,.22);
+  transform: translate(-50%, -50%);
+}
+.viewer-compass-rose::before {
+  width: 1px;
+  height: 72px;
+}
+.viewer-compass-rose::after {
+  width: 72px;
+  height: 1px;
+}
+.viewer-compass-label {
+  position: absolute;
+  color: #cbd5e1;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.viewer-compass-label.n { top: 5px; left: 50%; transform: translateX(-50%); color: #f6ad55; }
+.viewer-compass-label.e { right: 7px; top: 50%; transform: translateY(-50%); }
+.viewer-compass-label.s { bottom: 5px; left: 50%; transform: translateX(-50%); }
+.viewer-compass-label.w { left: 7px; top: 50%; transform: translateY(-50%); }
+.viewer-compass-needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 32px;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  background: linear-gradient(180deg, #f6ad55 0%, rgba(246,173,85,.2) 100%);
+  box-shadow: 0 0 10px rgba(246,173,85,.45);
+}
+.viewer-compass-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f8fafc;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px rgba(248,250,252,.12);
+}
+.viewer-compass-readout {
+  margin-top: 8px;
+  text-align: center;
+  color: #cbd5e1;
+  font-size: .68rem;
+  letter-spacing: .04em;
+}
+.viewer-pick-label {
+  position: absolute;
+  z-index: 3;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(9,16,26,.9);
+  border: 1px solid rgba(246,173,85,.45);
+  color: #f8fafc;
+  font-size: .76rem;
+  line-height: 1.45;
+  box-shadow: 0 10px 28px rgba(0,0,0,.3);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+}
+.viewer-pick-label.hidden {
+  display: none;
+}
+.viewer-pick-label strong {
+  color: #f6ad55;
 }
 .viewer-stats {
   display: grid;
@@ -422,6 +531,7 @@ input[type="file"] { display: none; }
 }
 @media (max-width: 920px) {
   .panel-grid { grid-template-columns: 1fr; }
+  #dxf3dPanel .panel-grid { grid-template-columns: 1fr; }
   .viewer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
@@ -430,7 +540,20 @@ input[type="file"] { display: none; }
   .panel { padding: 16px; }
   .field-grid, .field-grid.three { grid-template-columns: 1fr; }
   .viewer-stats { grid-template-columns: 1fr; }
-  .viewer-3d { min-height: 420px; }
+  .viewer-3d { min-height: 480px; }
+  .viewer-compass {
+    top: 12px;
+    right: 12px;
+    width: 96px;
+    height: 118px;
+    padding: 8px 8px 10px;
+  }
+  .viewer-compass-rose {
+    width: 78px;
+    height: 78px;
+  }
+  .viewer-compass-rose::before { height: 62px; }
+  .viewer-compass-rose::after { width: 62px; }
 }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -849,8 +972,8 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
             <h2>表示設定</h2>
             <div class="slider-row">
               <label for="dxf3dVerticalScale" style="min-width:120px;color:#cbd5e1;font-size:.86rem">鉛直強調</label>
-              <input id="dxf3dVerticalScale" type="range" min="0.2" max="8" step="0.1" value="1.8">
-              <span id="dxf3dVerticalScaleValue" style="min-width:48px;color:var(--primary-2);font-weight:700">1.8x</span>
+              <input id="dxf3dVerticalScale" type="range" min="0.2" max="8" step="0.1" value="1.0">
+              <span id="dxf3dVerticalScaleValue" style="min-width:48px;color:var(--primary-2);font-weight:700">1.0x</span>
             </div>
             <div class="btn-row">
               <label class="check"><input id="dxf3dShowPoints" type="checkbox" checked> 標高点を表示</label>
@@ -862,6 +985,18 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
             <h2>3Dビュー</h2>
             <div class="viewer-shell">
               <div class="viewer-3d" id="dxf3dViewport">
+                <div class="viewer-pick-label hidden" id="dxf3dPickLabel"></div>
+                <div class="viewer-compass" aria-hidden="true">
+                  <div class="viewer-compass-rose" id="dxf3dCompassRose">
+                    <span class="viewer-compass-label n">N</span>
+                    <span class="viewer-compass-label e">E</span>
+                    <span class="viewer-compass-label s">S</span>
+                    <span class="viewer-compass-label w">W</span>
+                    <span class="viewer-compass-needle"></span>
+                    <span class="viewer-compass-center"></span>
+                  </div>
+                  <div class="viewer-compass-readout" id="dxf3dCompassReadout">方位: -</div>
+                </div>
                 <div class="viewer-overlay">
                   <div class="viewer-chip">左ドラッグ: 回転 / ホイール: 拡大縮小 / 右ドラッグ: 移動</div>
                   <div class="viewer-chip" id="dxf3dOverlayInfo">未読み込み</div>
@@ -894,7 +1029,7 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           </div>
           <div class="section">
             <h2>表示仕様</h2>
-            <p class="hint">XYはDXFの平面座標をm換算で使用し、Zは標高値[m]を使用します。読み込んだ標高の最小値を基準に持ち上げ、色は低地から高地へ連続的に変化します。</p>
+            <p class="hint">DXFの X は Three.js の X、水平方向の DXF Y は Three.js の -Z、標高値は Three.js の Y（高さ）に割り当てます。読み込んだ標高の最小値を基準に持ち上げ、元DXFの東西南北を保ったまま表示します。</p>
           </div>
         </aside>
       </div>
@@ -2935,6 +3070,8 @@ function boundsFromPoints(points) {
     scene: null,
     camera: null,
     controls: null,
+    raycaster: null,
+    pointer: null,
     terrainGroup: null,
     pointsObject: null,
     gridHelper: null,
@@ -2942,7 +3079,8 @@ function boundsFromPoints(points) {
     resizeObserver: null,
     frameId: 0,
     model: null,
-    defaultCamera: null
+    defaultCamera: null,
+    selectedContour: null
   };
 
   var dropZone = document.getElementById('dxf3dDropZone');
@@ -2957,6 +3095,9 @@ function boundsFromPoints(points) {
   var successBox = document.getElementById('dxf3dSuccessBox');
   var viewportEl = document.getElementById('dxf3dViewport');
   var overlayInfoEl = document.getElementById('dxf3dOverlayInfo');
+  var pickLabelEl = document.getElementById('dxf3dPickLabel');
+  var compassRoseEl = document.getElementById('dxf3dCompassRose');
+  var compassReadoutEl = document.getElementById('dxf3dCompassReadout');
   var verticalScaleEl = document.getElementById('dxf3dVerticalScale');
   var verticalScaleValueEl = document.getElementById('dxf3dVerticalScaleValue');
   var showPointsEl = document.getElementById('dxf3dShowPoints');
@@ -3007,6 +3148,9 @@ function boundsFromPoints(points) {
     resetProgress();
     setStats(null);
     overlayInfoEl.textContent = viewer.model ? overlayInfoEl.textContent : '未読み込み';
+    clearContourSelection();
+    if (compassReadoutEl) compassReadoutEl.textContent = '方位: -';
+    if (compassRoseEl) compassRoseEl.style.transform = 'rotate(0deg)';
     setStatus('dxf3dStatusBar', 'sb-hint', '等高線DXFファイルをドロップしてください');
   }
 
@@ -3052,6 +3196,77 @@ function boundsFromPoints(points) {
     statExtentEl.textContent = fmtNum(model.extent.widthMeters, 1) + 'm × ' + fmtNum(model.extent.heightMeters, 1) + 'm';
   }
 
+  function compassDirectionLabel(deg) {
+    var labels = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+    var idx = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+    return labels[idx];
+  }
+
+  function updateCompass() {
+    if (!compassRoseEl || !compassReadoutEl || !viewer.camera || !viewer.controls) return;
+    var target = viewer.controls.target;
+    var dx = target.x - viewer.camera.position.x;
+    var dz = target.z - viewer.camera.position.z;
+    if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) return;
+    var headingDeg = Math.atan2(dx, -dz) * 180 / Math.PI;
+    var normalized = ((headingDeg % 360) + 360) % 360;
+    compassRoseEl.style.transform = 'rotate(' + (-normalized).toFixed(1) + 'deg)';
+    compassReadoutEl.textContent = '画面上: ' + compassDirectionLabel(normalized) + ' ' + normalized.toFixed(0) + '°';
+  }
+
+  function clearContourSelection() {
+    if (viewer.selectedContour && viewer.selectedContour.material) {
+      viewer.selectedContour.material.color.copy(viewer.selectedContour.userData.baseColor);
+      viewer.selectedContour.material.opacity = 1;
+      viewer.selectedContour.material.transparent = false;
+    }
+    viewer.selectedContour = null;
+    if (pickLabelEl) {
+      pickLabelEl.classList.add('hidden');
+      pickLabelEl.textContent = '';
+    }
+  }
+
+  function showContourSelection(line, clientX, clientY) {
+    clearContourSelection();
+    viewer.selectedContour = line;
+    if (line.material && line.userData && line.userData.baseColor) {
+      line.material.color.set(0xffc857);
+      line.material.opacity = 1;
+      line.material.transparent = false;
+    }
+    if (!pickLabelEl) return;
+    var rect = viewportEl.getBoundingClientRect();
+    var left = clamp(clientX - rect.left, 18, Math.max(18, rect.width - 18));
+    var top = clamp(clientY - rect.top, 28, Math.max(28, rect.height - 18));
+    pickLabelEl.style.left = left + 'px';
+    pickLabelEl.style.top = top + 'px';
+    pickLabelEl.innerHTML =
+      '<strong>等高線標高</strong><br>' +
+      fmtNum(line.userData.elevation, 2) + ' m';
+    pickLabelEl.classList.remove('hidden');
+    setStatus('dxf3dStatusBar', 'sb-ok', '選択等高線の標高: ' + fmtNum(line.userData.elevation, 2) + ' m');
+  }
+
+  function pickContourAt(clientX, clientY) {
+    if (!viewer.renderer || !viewer.camera || !viewer.model || !viewer.terrainGroup || !viewer.raycaster || !viewer.pointer) return;
+    var rect = viewer.renderer.domElement.getBoundingClientRect();
+    viewer.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    viewer.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    viewer.raycaster.params.Line.threshold = clamp(Math.max(viewer.model.extent.widthMeters, viewer.model.extent.heightMeters) * 0.003, 1.5, 12);
+    viewer.raycaster.setFromCamera(viewer.pointer, viewer.camera);
+    var lines = viewer.terrainGroup.children.filter(function (child) {
+      return child.type === 'Line' && child.userData && child.userData.pickable;
+    });
+    var hits = viewer.raycaster.intersectObjects(lines, false);
+    if (!hits.length) {
+      clearContourSelection();
+      setStatus('dxf3dStatusBar', 'sb-ready', '等高線をクリックすると標高を表示します');
+      return;
+    }
+    showContourSelection(hits[0].object, clientX, clientY);
+  }
+
   function ensureViewer() {
     if (viewer.renderer) {
       resizeViewer();
@@ -3065,6 +3280,11 @@ function boundsFromPoints(points) {
     if ('outputColorSpace' in viewer.renderer && THREE.SRGBColorSpace) viewer.renderer.outputColorSpace = THREE.SRGBColorSpace;
     else if ('outputEncoding' in viewer.renderer && THREE.sRGBEncoding) viewer.renderer.outputEncoding = THREE.sRGBEncoding;
     viewportEl.insertBefore(viewer.renderer.domElement, viewportEl.firstChild);
+    viewer.raycaster = new THREE.Raycaster();
+    viewer.pointer = new THREE.Vector2();
+    viewer.renderer.domElement.addEventListener('click', function (e) {
+      pickContourAt(e.clientX, e.clientY);
+    });
 
     viewer.scene = new THREE.Scene();
     viewer.scene.background = new THREE.Color(0x06090f);
@@ -3077,6 +3297,7 @@ function boundsFromPoints(points) {
     viewer.controls.screenSpacePanning = true;
     viewer.controls.minDistance = 10;
     viewer.controls.maxDistance = 8000;
+    viewer.controls.addEventListener('change', updateCompass);
 
     var ambient = new THREE.AmbientLight(0xffffff, 1.25);
     var dir1 = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -3096,6 +3317,7 @@ function boundsFromPoints(points) {
     resizeViewer();
     viewer.resizeObserver = new ResizeObserver(resizeViewer);
     viewer.resizeObserver.observe(viewportEl);
+    updateCompass();
     animate();
   }
 
@@ -3111,10 +3333,12 @@ function boundsFromPoints(points) {
   function animate() {
     viewer.frameId = requestAnimationFrame(animate);
     if (viewer.controls) viewer.controls.update();
+    updateCompass();
     if (viewer.renderer && viewer.scene && viewer.camera) viewer.renderer.render(viewer.scene, viewer.camera);
   }
 
   function clearSceneObjects() {
+    clearContourSelection();
     if (viewer.terrainGroup) {
       viewer.scene.remove(viewer.terrainGroup);
       disposeThreeObject(viewer.terrainGroup);
@@ -3140,6 +3364,87 @@ function boundsFromPoints(points) {
     return color;
   }
 
+  var DXF_TO_THREE_MAPPING = Object.freeze({
+    horizontalX: 'DXF X -> Three.js X',
+    horizontalY: 'DXF Y -> Three.js -Z',
+    vertical: 'Elevation -> Three.js Y'
+  });
+
+  function dxfToThreePosition(model, x, y, elevation) {
+    return {
+      x: (x - model.centerX) / 1000,
+      y: elevation - model.minElevation,
+      z: -((y - model.centerY) / 1000)
+    };
+  }
+
+  function measureWorldBounds(model) {
+    var min = dxfToThreePosition(model, model.bounds.minX, model.bounds.maxY, model.minElevation);
+    var max = dxfToThreePosition(model, model.bounds.maxX, model.bounds.minY, model.maxElevation);
+    return {
+      minX: min.x,
+      maxX: max.x,
+      minY: min.y,
+      maxY: max.y,
+      minZ: min.z,
+      maxZ: max.z
+    };
+  }
+
+  function buildCoordinateSamples(model) {
+    var samples = [];
+    var chain = model.chains.find(function (item) { return item.points && item.points.length; });
+    if (chain) {
+      var first = chain.points[0];
+      var middle = chain.points[Math.floor(chain.points.length / 2)];
+      [first, middle].forEach(function (pt, idx) {
+        if (!pt) return;
+        var world = dxfToThreePosition(model, pt[0], pt[1], chain.elevation);
+        samples.push({
+          sample: 'contour-' + (idx + 1),
+          dxfX: pt[0],
+          dxfY: pt[1],
+          elevation: chain.elevation,
+          threeX: world.x,
+          threeY: world.y,
+          threeZ: world.z
+        });
+      });
+    }
+    model.elevationPoints.slice(0, 2).forEach(function (pt, idx) {
+      var world = dxfToThreePosition(model, pt.x, pt.y, pt.elevation);
+      samples.push({
+        sample: 'elev-' + (idx + 1),
+        dxfX: pt.x,
+        dxfY: pt.y,
+        elevation: pt.elevation,
+        threeX: world.x,
+        threeY: world.y,
+        threeZ: world.z
+      });
+    });
+    return samples;
+  }
+
+  function logCoordinateDiagnostics(model) {
+    if (typeof console === 'undefined') return;
+    console.groupCollapsed('[DXF 3D] Coordinate diagnostics');
+    console.info('Axis mapping:', DXF_TO_THREE_MAPPING);
+    console.info('DXF bounds (mm):', {
+      minX: model.bounds.minX,
+      maxX: model.bounds.maxX,
+      minY: model.bounds.minY,
+      maxY: model.bounds.maxY
+    });
+    console.info('Elevation bounds (m):', {
+      minZ: model.minElevation,
+      maxZ: model.maxElevation
+    });
+    console.info('Three.js bounds:', model.worldBounds);
+    if (model.coordinateSamples.length) console.table(model.coordinateSamples);
+    console.groupEnd();
+  }
+
   function setGridHelperStyle(gridHelper) {
     var materials = Array.isArray(gridHelper.material) ? gridHelper.material : [gridHelper.material];
     materials.forEach(function (material) {
@@ -3161,14 +3466,21 @@ function boundsFromPoints(points) {
       var positions = new Float32Array(chain.points.length * 3);
       for (var j = 0; j < chain.points.length; j++) {
         var pt = chain.points[j];
-        positions[j * 3] = (pt[0] - model.centerX) / 1000;
-        positions[j * 3 + 1] = chain.elevation - model.minElevation;
-        positions[j * 3 + 2] = (pt[1] - model.centerY) / 1000;
+        var world = dxfToThreePosition(model, pt[0], pt[1], chain.elevation);
+        positions[j * 3] = world.x;
+        positions[j * 3 + 1] = world.y;
+        positions[j * 3 + 2] = world.z;
       }
       var geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       var material = new THREE.LineBasicMaterial({ color: colorForElevation(chain.elevation, model.minElevation, model.maxElevation) });
-      terrainGroup.add(new THREE.Line(geometry, material));
+      var line = new THREE.Line(geometry, material);
+      line.userData = {
+        pickable: true,
+        elevation: chain.elevation,
+        baseColor: material.color.clone()
+      };
+      terrainGroup.add(line);
     }
 
     if (model.elevationPoints.length) {
@@ -3177,9 +3489,10 @@ function boundsFromPoints(points) {
       for (var p = 0; p < model.elevationPoints.length; p++) {
         var ep = model.elevationPoints[p];
         var color = colorForElevation(ep.elevation, model.minElevation, model.maxElevation);
-        pbuf[p * 3] = (ep.x - model.centerX) / 1000;
-        pbuf[p * 3 + 1] = ep.elevation - model.minElevation;
-        pbuf[p * 3 + 2] = (ep.y - model.centerY) / 1000;
+        var world = dxfToThreePosition(model, ep.x, ep.y, ep.elevation);
+        pbuf[p * 3] = world.x;
+        pbuf[p * 3 + 1] = world.y;
+        pbuf[p * 3 + 2] = world.z;
         cbuf[p * 3] = color.r;
         cbuf[p * 3 + 1] = color.g;
         cbuf[p * 3 + 2] = color.b;
@@ -3216,6 +3529,9 @@ function boundsFromPoints(points) {
     resetBtn.disabled = false;
     setStats(model);
     overlayInfoEl.textContent = fmtNum(model.minElevation, 2) + 'm - ' + fmtNum(model.maxElevation, 2) + 'm / ' + model.chains.length.toLocaleString() + '本';
+    updateCompass();
+    setStatus('dxf3dStatusBar', 'sb-ready', '等高線をクリックすると標高を表示します');
+    logCoordinateDiagnostics(model);
   }
 
   function resetViewerCamera(model) {
@@ -3225,6 +3541,7 @@ function boundsFromPoints(points) {
     viewer.camera.position.set(distance * 0.9, distance * 0.72, distance * 0.9);
     viewer.controls.target.set(0, ((model.maxElevation - model.minElevation) * (parseFloat(verticalScaleEl.value) || 1)) * 0.25, 0);
     viewer.controls.update();
+    updateCompass();
   }
 
   function parseDxf(text) {
@@ -3263,10 +3580,11 @@ function boundsFromPoints(points) {
     var minElevation = Math.min.apply(null, allElevs);
     var maxElevation = Math.max.apply(null, allElevs);
     var bounds = measureChainBounds(chains);
-    return {
+    var model = {
       chains: chains,
       elevationPoints: elevationPoints,
       contourLabels: contourLabels,
+      bounds: bounds,
       minElevation: minElevation,
       maxElevation: maxElevation,
       centerX: (bounds.minX + bounds.maxX) / 2,
@@ -3276,6 +3594,9 @@ function boundsFromPoints(points) {
         heightMeters: (bounds.maxY - bounds.minY) / 1000
       }
     };
+    model.worldBounds = measureWorldBounds(model);
+    model.coordinateSamples = buildCoordinateSamples(model);
+    return model;
   }
 
   function toDxfPairs(text) {
