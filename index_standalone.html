@@ -2740,6 +2740,260 @@ function appendLatLonEntitiesToDxf(dxfText, latlonData) {
   return result;
 }
 
+/* ==================== 機能⑧ lat/lon情報の読み取り関数 ==================== */
+
+/* DXFテキストからlat/lon基準点を抽出 */
+function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
+  logger.info('【機能⑧】DXFからlat/lon基準点抽出開始', {
+    sourceLabel: sourceLabel,
+    dxfLength: dxfText.length
+  });
+
+  const results = {
+    allLayers: [],
+    pointsInLayer5: [],
+    textsInLayer5: [],
+    latlonPoints: [],
+    warnings: [],
+    errors: []
+  };
+
+  // DXFをエンティティごとに分割
+  const entityRegex = /^\s*0\n([A-Z]+)\n([\s\S]*?)(?=^\s*0\n|$)/gm;
+  let match;
+  let entitiesFound = 0;
+  const layerSet = new Set();
+
+  // レイヤ情報を抽出する簡易的な方法：グループコード 8 で検索
+  const layer8Regex = /^\s*8\n(.+?)$/gm;
+  while ((match = layer8Regex.exec(dxfText)) !== null) {
+    const layerName = match[1].trim();
+    if (layerName) layerSet.add(layerName);
+  }
+
+  results.allLayers = Array.from(layerSet).sort();
+
+  logger.info('【機能⑧】検出レイヤー', {
+    レイヤー数: results.allLayers.length,
+    レイヤー一覧: results.allLayers.slice(0, 20).join(', ')
+  });
+
+  // レイヤ "5" のエンティティを抽出
+  // DXFフォーマットは以下のような構造：
+  // 0          <- Entity type indicator
+  // POINT      <- Entity type
+  // 8          <- Layer code
+  // 5          <- Layer name
+  // 10         <- X coordinate
+  // 12345.67   <- X value
+  // 20         <- Y coordinate
+  // 98765.43   <- Y value
+
+  const lines = dxfText.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+
+    // グループコード 0：エンティティ種別
+    if (line === '0' && i + 1 < lines.length) {
+      const entityType = lines[i + 1].trim();
+
+      // グループコード 8：レイヤー名を探す
+      let currentLayer = '';
+      for (let j = i + 2; j < Math.min(i + 30, lines.length); j++) {
+        if (lines[j].trim() === '8' && j + 1 < lines.length) {
+          currentLayer = lines[j + 1].trim();
+          break;
+        }
+      }
+
+      // レイヤ "5" のみを対象
+      if (currentLayer === '5') {
+        if (entityType === 'POINT') {
+          // POINT座標を抽出（グループコード 10, 20）
+          let x = null, y = null;
+          for (let j = i; j < Math.min(i + 50, lines.length); j++) {
+            if (lines[j].trim() === '10' && j + 1 < lines.length) {
+              x = parseFloat(lines[j + 1]);
+            }
+            if (lines[j].trim() === '20' && j + 1 < lines.length) {
+              y = parseFloat(lines[j + 1]);
+            }
+            if (x !== null && y !== null) break;
+          }
+
+          if (x !== null && y !== null) {
+            results.pointsInLayer5.push({
+              type: 'POINT',
+              x: x,
+              y: y,
+              layer: currentLayer
+            });
+          }
+        } else if (entityType === 'TEXT' || entityType === 'MTEXT') {
+          // TEXT座標とテキスト内容を抽出
+          let x = null, y = null, textContent = '';
+          for (let j = i; j < Math.min(i + 50, lines.length); j++) {
+            if (lines[j].trim() === '10' && j + 1 < lines.length) {
+              x = parseFloat(lines[j + 1]);
+            }
+            if (lines[j].trim() === '20' && j + 1 < lines.length) {
+              y = parseFloat(lines[j + 1]);
+            }
+            if (lines[j].trim() === '1' && j + 1 < lines.length) {
+              textContent = lines[j + 1];
+            }
+            if (x !== null && y !== null && textContent) break;
+          }
+
+          if (x !== null && y !== null && textContent) {
+            results.textsInLayer5.push({
+              type: entityType,
+              x: x,
+              y: y,
+              text: textContent,
+              layer: currentLayer
+            });
+          }
+        }
+      }
+    }
+    i++;
+  }
+
+  logger.info('【機能⑧】レイヤ5のエンティティ抽出結果', {
+    POINT数: results.pointsInLayer5.length,
+    TEXT数: results.textsInLayer5.length,
+    MTEXT数: results.textsInLayer5.filter(t => t.type === 'MTEXT').length
+  });
+
+  // テキストからlon/latを抽出
+  for (const txt of results.textsInLayer5) {
+    const latlonMatch = parseLatLonFromText(txt.text);
+    if (latlonMatch && latlonMatch.lon !== null && latlonMatch.lat !== null) {
+      results.latlonPoints.push({
+        textId: txt.text.substring(0, 20),  // 最初の20文字をID として使用
+        textFull: txt.text,
+        lon: latlonMatch.lon,
+        lat: latlonMatch.lat,
+        textX: txt.x,
+        textY: txt.y
+      });
+    }
+  }
+
+  logger.info('【機能⑧】lon/lat抽出結果', {
+    抽出数: results.latlonPoints.length,
+    サンプル: results.latlonPoints.slice(0, 3).map(p => ({
+      lon: p.lon.toFixed(6),
+      lat: p.lat.toFixed(6)
+    }))
+  });
+
+  // POINTとTEXTを対応付け
+  const matchedPoints = [];
+  const usedTextIndices = new Set();
+
+  for (const point of results.pointsInLayer5) {
+    // 最も近いTEXTを探す
+    let nearestText = null;
+    let nearestDist = Infinity;
+    let nearestIdx = -1;
+
+    for (let idx = 0; idx < results.textsInLayer5.length; idx++) {
+      if (usedTextIndices.has(idx)) continue;
+
+      const txt = results.textsInLayer5[idx];
+      const dist = Math.hypot(point.x - txt.x, point.y - txt.y);
+
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestText = txt;
+        nearestIdx = idx;
+      }
+    }
+
+    // 距離が一定以内なら対応
+    const MATCH_DISTANCE_THRESHOLD = 1000; // mm
+    if (nearestText && nearestDist <= MATCH_DISTANCE_THRESHOLD) {
+      const latlonMatch = parseLatLonFromText(nearestText.text);
+      if (latlonMatch && latlonMatch.lon !== null && latlonMatch.lat !== null) {
+        matchedPoints.push({
+          id: nearestText.text.substring(0, 20),
+          source: sourceLabel,
+          cadX: point.x,
+          cadY: point.y,
+          lon: latlonMatch.lon,
+          lat: latlonMatch.lat,
+          pointLayer: '5',
+          labelLayer: '5',
+          distance: nearestDist
+        });
+
+        usedTextIndices.add(nearestIdx);
+      }
+    }
+  }
+
+  logger.success('【機能⑧】POINT-TEXT対応付け完了', {
+    対応数: matchedPoints.length,
+    未対応POINT数: results.pointsInLayer5.length - matchedPoints.length,
+    未対応TEXT数: results.textsInLayer5.length - usedTextIndices.size
+  });
+
+  if (results.pointsInLayer5.length - matchedPoints.length > 0) {
+    results.warnings.push(
+      '未対応のPOINTが' + (results.pointsInLayer5.length - matchedPoints.length) + '個あります'
+    );
+  }
+
+  results.latlonPoints = matchedPoints;
+
+  return results;
+}
+
+/* テキストからlon/latを抽出 */
+function parseLatLonFromText(text) {
+  if (!text) return null;
+
+  // 複数の形式に対応
+  let lon = null, lat = null;
+
+  // 形式1: lon:138.573325\nlat:36.367764 または lon:138.573325 lat:36.367764
+  const fmt1 = /lon[:\s]+([0-9.\-]+)[\s\n]*lat[:\s]+([0-9.\-]+)/i;
+  let m = fmt1.exec(text);
+  if (m) {
+    lon = parseFloat(m[1]);
+    lat = parseFloat(m[2]);
+  }
+
+  // 形式2: lon, lat の順で2つの数値（カンマ区切り）
+  if (lon === null) {
+    const fmt2 = /([0-9.\-]+)\s*,\s*([0-9.\-]+)/;
+    m = fmt2.exec(text);
+    if (m) {
+      lon = parseFloat(m[1]);
+      lat = parseFloat(m[2]);
+    }
+  }
+
+  // 形式3: 2つの数値が改行で区切られている
+  if (lon === null) {
+    const fmt3 = /^([0-9.\-]+)\s*\n\s*([0-9.\-]+)$/m;
+    m = fmt3.exec(text);
+    if (m) {
+      lon = parseFloat(m[1]);
+      lat = parseFloat(m[2]);
+    }
+  }
+
+  if (lon !== null && lat !== null && Number.isFinite(lon) && Number.isFinite(lat)) {
+    return { lon: lon, lat: lat };
+  }
+
+  return null;
+}
+
 /* lat/lon 基準点を生成（シンプル版：中央に1点だけ）
    図面中央にPOINT + TEXTを1点だけ配置してテスト */
 function generateLatLonControlPoints(opts) {
@@ -7850,6 +8104,214 @@ async function _searchChibanAddr() {
     setStatus('chibanStatusBar', 'sb-err', '住所が見つかりませんでした。別の地名で試してください');
   }
 }
+
+/* ==================== 機能⑧ DXF重ね合わせ イベントハンドラ ==================== */
+(function() {
+  let mergeBaseDxfText = null;  // F01 DXFテキスト
+  let mergeBaseLatlonData = null;  // F01 lat/lon情報
+  let mergeOverlayDxfText = null;  // F03 DXFテキスト
+  let mergeOverlayLatlonData = null;  // F03 lat/lon情報
+
+  const ui = {
+    baseDxfZone: document.getElementById('mergeBaseDxfZone'),
+    baseInput: document.getElementById('mergeBaseDxfInput'),
+    baseBadge: document.getElementById('mergeBaseDxfBadge'),
+    baseName: document.getElementById('mergeBaseDxfName'),
+    baseSize: document.getElementById('mergeBaseDxfSize'),
+    baseRemove: document.getElementById('mergeBaseDxfRemove'),
+    overlayDxfZone: document.getElementById('mergeOverlayDxfZone'),
+    overlayInput: document.getElementById('mergeOverlayDxfInput'),
+    overlayBadge: document.getElementById('mergeOverlayDxfBadge'),
+    overlayName: document.getElementById('mergeOverlayDxfName'),
+    overlaySize: document.getElementById('mergeOverlayDxfSize'),
+    overlayRemove: document.getElementById('mergeOverlayDxfRemove'),
+    mergeBtn: document.getElementById('mergeDxfBtn'),
+    progressFill: document.getElementById('mergeProgressFill'),
+    progressLabel: document.getElementById('mergeProgressLabel'),
+    warnBox: document.getElementById('mergeWarnBox'),
+    errorBox: document.getElementById('mergeErrorBox'),
+    successBox: document.getElementById('mergeSuccessBox'),
+    statusBar: document.getElementById('mergeStatusBar')
+  };
+
+  // 基準DXFファイル選択
+  ui.baseDxfZone.addEventListener('click', () => ui.baseInput.click());
+  ui.baseInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) loadBaseDxf(file);
+  });
+
+  ui.baseDxfZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    ui.baseDxfZone.style.opacity = '0.7';
+  });
+
+  ui.baseDxfZone.addEventListener('dragleave', () => {
+    ui.baseDxfZone.style.opacity = '1';
+  });
+
+  ui.baseDxfZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    ui.baseDxfZone.style.opacity = '1';
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.dxf')) {
+      loadBaseDxf(file);
+    }
+  });
+
+  // 重ね合わせDXFファイル選択
+  ui.overlayDxfZone.addEventListener('click', () => ui.overlayInput.click());
+  ui.overlayInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) loadOverlayDxf(file);
+  });
+
+  ui.overlayDxfZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    ui.overlayDxfZone.style.opacity = '0.7';
+  });
+
+  ui.overlayDxfZone.addEventListener('dragleave', () => {
+    ui.overlayDxfZone.style.opacity = '1';
+  });
+
+  ui.overlayDxfZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    ui.overlayDxfZone.style.opacity = '1';
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.dxf')) {
+      loadOverlayDxf(file);
+    }
+  });
+
+  // 基準DXF読み込み
+  function loadBaseDxf(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      mergeBaseDxfText = e.target.result;
+      ui.baseName.textContent = file.name;
+      ui.baseSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+      ui.baseBadge.style.display = 'block';
+
+      // lat/lon情報を読み取り
+      mergeBaseLatlonData = readLatLonPointsFromDXF(mergeBaseDxfText, 'F01');
+
+      logger.info('【機能⑧】基準DXF読み込み完了', {
+        filename: file.name,
+        size: file.size,
+        latlonPoints: mergeBaseLatlonData.latlonPoints.length
+      });
+
+      updateMergeButton();
+    };
+    reader.readAsText(file);
+  }
+
+  // 重ね合わせDXF読み込み
+  function loadOverlayDxf(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      mergeOverlayDxfText = e.target.result;
+      ui.overlayName.textContent = file.name;
+      ui.overlaySize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+      ui.overlayBadge.style.display = 'block';
+
+      // lat/lon情報を読み取り
+      mergeOverlayLatlonData = readLatLonPointsFromDXF(mergeOverlayDxfText, 'F03');
+
+      logger.info('【機能⑧】重ね合わせDXF読み込み完了', {
+        filename: file.name,
+        size: file.size,
+        latlonPoints: mergeOverlayLatlonData.latlonPoints.length
+      });
+
+      updateMergeButton();
+    };
+    reader.readAsText(file);
+  }
+
+  function updateMergeButton() {
+    if (mergeBaseDxfText && mergeOverlayDxfText &&
+        mergeBaseLatlonData && mergeBaseLatlonData.latlonPoints.length > 0 &&
+        mergeOverlayLatlonData && mergeOverlayLatlonData.latlonPoints.length > 0) {
+      ui.mergeBtn.disabled = false;
+      ui.statusBar.textContent = '✓ 両方のDXFが読み込まれました。「DXFを重ね合わせ」をクリックしてください。';
+    } else {
+      ui.mergeBtn.disabled = true;
+      const reasons = [];
+      if (!mergeBaseDxfText) reasons.push('基準DXF');
+      if (!mergeOverlayDxfText) reasons.push('重ね合わせDXF');
+      if (mergeBaseLatlonData && mergeBaseLatlonData.latlonPoints.length === 0) reasons.push('基準DXFのlat/lon基準点');
+      if (mergeOverlayLatlonData && mergeOverlayLatlonData.latlonPoints.length === 0) reasons.push('重ね合わせDXFのlat/lon基準点');
+      ui.statusBar.textContent = '⚠ ' + reasons.join('、') + 'がまだ読み込まれていません';
+    }
+  }
+
+  // ファイル削除
+  ui.baseRemove.addEventListener('click', () => {
+    mergeBaseDxfText = null;
+    mergeBaseLatlonData = null;
+    ui.baseBadge.style.display = 'none';
+    ui.baseInput.value = '';
+    updateMergeButton();
+  });
+
+  ui.overlayRemove.addEventListener('click', () => {
+    mergeOverlayDxfText = null;
+    mergeOverlayLatlonData = null;
+    ui.overlayBadge.style.display = 'none';
+    ui.overlayInput.value = '';
+    updateMergeButton();
+  });
+
+  // 重ね合わせ実行
+  ui.mergeBtn.addEventListener('click', async () => {
+    ui.errorBox.innerHTML = '';
+    ui.warnBox.innerHTML = '';
+    ui.successBox.innerHTML = '';
+    ui.progressLabel.textContent = '処理中...';
+    ui.progressFill.style.width = '0%';
+
+    logger.info('【機能⑧】重ね合わせ処理開始');
+
+    try {
+      if (!mergeBaseLatlonData || !mergeOverlayLatlonData) {
+        throw new Error('lat/lon基準点が読み込まれていません');
+      }
+
+      const basePoints = mergeBaseLatlonData.latlonPoints;
+      const overlayPoints = mergeOverlayLatlonData.latlonPoints;
+
+      logger.info('【機能⑧】基準点確認', {
+        basePoints: basePoints.length,
+        overlayPoints: overlayPoints.length
+      });
+
+      // 今後の重ね合わせ計算の準備
+      ui.progressFill.style.width = '100%';
+      ui.progressLabel.textContent = '読み取り確認完了';
+
+      logger.success('【機能⑧】第1段階（読み取り確認）完了', {
+        basePoints: basePoints.length,
+        overlayPoints: overlayPoints.length,
+        メッセージ: 'lat/lon基準点の読み取り確認が完了しました。次のステップで重ね合わせを実行します。'
+      });
+
+      ui.successBox.innerHTML =
+        '<strong>✓ 読み取り確認完了</strong><br>' +
+        '基準DXF: ' + basePoints.length + '点<br>' +
+        '重ね合わせDXF: ' + overlayPoints.length + '点<br>' +
+        '<br>ログで詳細を確認してから、次のステップへ進んでください。';
+
+      updateMergeButton();
+    } catch (err) {
+      logger.error('【機能⑧】エラー', { message: err.message });
+      ui.errorBox.innerHTML = '<strong>✗ エラー</strong><br>' + err.message;
+      ui.progressLabel.textContent = 'エラー';
+      ui.progressFill.style.width = '0%';
+    }
+  });
+})();
 </script>
 <script>
 /* ==================== 機能⑨ ログパネル イベントハンドラ ==================== */
