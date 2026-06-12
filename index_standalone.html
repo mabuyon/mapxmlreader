@@ -498,6 +498,121 @@ input[type="file"] { display: none; }
 .viewer-pick-label strong {
   color: #f6ad55;
 }
+.sun-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.sun-map-col {
+  flex: 1;
+  min-width: 320px;
+  display: grid;
+  gap: 18px;
+}
+.sun-side-col {
+  width: 340px;
+  min-width: 280px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.sun-map {
+  height: 620px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #0d1420;
+  overflow: hidden;
+}
+.sun-legend {
+  display: grid;
+  gap: 8px;
+}
+.sun-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #cbd5e1;
+  font-size: .86rem;
+}
+.sun-swatch {
+  width: 28px;
+  height: 0;
+  border-top: 3px solid currentColor;
+  flex-shrink: 0;
+}
+.sun-swatch.dashed {
+  border-top-style: dashed;
+  opacity: .45;
+}
+.sun-meta {
+  display: grid;
+  gap: 10px;
+}
+.sun-meta .summary-item {
+  margin-top: 0;
+}
+.sun-cards {
+  display: grid;
+  gap: 10px;
+}
+.sun-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #e2e8f0;
+  font-weight: 700;
+}
+.sun-card-title .dot {
+  width: 12px;
+  height: 12px;
+}
+.sun-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+.sun-card-grid .label {
+  color: var(--muted);
+  font-size: .76rem;
+}
+.sun-card-grid .value {
+  color: var(--text);
+  font-size: .88rem;
+  font-weight: 600;
+}
+.sun-control-row {
+  display: grid;
+  gap: 10px;
+}
+.sun-label-icon {
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  text-shadow:
+    -1px -1px 0 rgba(0,0,0,.92),
+     1px -1px 0 rgba(0,0,0,.92),
+    -1px  1px 0 rgba(0,0,0,.92),
+     1px  1px 0 rgba(0,0,0,.92),
+     0 2px 6px rgba(0,0,0,.9);
+}
+.sun-label-icon span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.62);
+  border: 1px solid rgba(255,255,255,.26);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.sun-ray {
+  vector-effect: non-scaling-stroke;
+}
 .viewer-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -533,6 +648,10 @@ input[type="file"] { display: none; }
   .panel-grid { grid-template-columns: 1fr; }
   #dxf3dPanel .panel-grid { grid-template-columns: 1fr; }
   .viewer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sun-side-col {
+    width: 100%;
+    min-width: 0;
+  }
 }
 @media (max-width: 640px) {
   body { padding: 14px; }
@@ -541,6 +660,8 @@ input[type="file"] { display: none; }
   .field-grid, .field-grid.three { grid-template-columns: 1fr; }
   .viewer-stats { grid-template-columns: 1fr; }
   .viewer-3d { min-height: 480px; }
+  .sun-map { height: 460px; }
+  .sun-card-grid { grid-template-columns: 1fr; }
   .viewer-compass {
     top: 12px;
     right: 12px;
@@ -555,10 +676,535 @@ input[type="file"] { display: none; }
   .viewer-compass-rose::before { height: 62px; }
   .viewer-compass-rose::after { width: 62px; }
 }
+
+/* ==================== 機能⑨ ログパネル CSS ==================== */
+.log-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  transition: max-height 0.3s ease;
+}
+
+.log-panel.collapsed {
+  max-height: 40px;
+}
+
+.log-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+
+.log-panel-title {
+  font-weight: 600;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+}
+
+.log-panel-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.log-btn {
+  padding: 4px 8px;
+  background: #334155;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.log-btn:hover {
+  background: #475569;
+  color: #f1f5f9;
+}
+
+.log-console {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  background: #0f172a;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.log-line {
+  padding: 2px 4px;
+  margin: 1px 0;
+  border-left: 2px solid transparent;
+}
+
+.log-line.log-info {
+  color: #93c5fd;
+  border-left-color: #3b82f6;
+}
+
+.log-line.log-success {
+  color: #86efac;
+  border-left-color: #22c55e;
+}
+
+.log-line.log-warn {
+  color: #fbbf24;
+  border-left-color: #f59e0b;
+}
+
+.log-line.log-error {
+  color: #f87171;
+  border-left-color: #ef4444;
+}
+
+.log-line.log-debug {
+  color: #d8b4fe;
+  border-left-color: #a855f7;
+}
+
+.log-time {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.log-level {
+  font-weight: 600;
+  min-width: 60px;
+  display: inline-block;
+}
+
+.log-msg {
+  word-wrap: break-word;
+}
+
+.log-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 0 12px;
+  font-size: 0.8rem;
+  flex: 1;
+}
+
+.stat-error {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.stat-warn {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.stat-success {
+  color: #86efac;
+  font-weight: 600;
+}
+
+.stat-info {
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+.stat-empty {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+/* ページコンテンツは下にシフト */
+body {
+  padding-top: 0;
+}
+
+.log-panel:not(.collapsed) ~ .app {
+  margin-top: 210px;
+}
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script>
+/* ==================== 機能⑨ ログシステム ==================== */
+class Logger {
+  constructor() {
+    this.logs = [];
+    this.debugMode = false;
+    this.startTimes = {};
+    this.sessionId = new Date().toISOString().replace(/[:-]/g, '').substring(0, 14);
+  }
+
+  // ログ出力メイン関数
+  _log(level, message, details = null) {
+    const timestamp = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+    const logEntry = {
+      timestamp,
+      level,
+      message,
+      details,
+      sessionId: this.sessionId,
+      url: window.location.href
+    };
+
+    this.logs.push(logEntry);
+
+    // コンソール出力
+    const consoleMsg = `[${timestamp}] [${level}] ${message}${details ? '\n  ' + JSON.stringify(details) : ''}`;
+    switch(level) {
+      case 'ERROR': console.error(consoleMsg); break;
+      case 'WARN': console.warn(consoleMsg); break;
+      case 'SUCCESS': console.log('%c' + consoleMsg, 'color: #10b981'); break;
+      case 'DEBUG': if (this.debugMode) console.log('%c' + consoleMsg, 'color: #6366f1'); break;
+      default: console.log(consoleMsg);
+    }
+
+    // UI 更新
+    this._updateUI(level, message);
+  }
+
+  info(message, details = null) {
+    this._log('INFO', message, details);
+  }
+
+  warn(message, details = null) {
+    this._log('WARN', message, details);
+  }
+
+  error(message, details = null) {
+    this._log('ERROR', message, details);
+  }
+
+  success(message, details = null) {
+    this._log('SUCCESS', message, details);
+  }
+
+  debug(message, details = null) {
+    if (this.debugMode) {
+      this._log('DEBUG', message, details);
+    }
+  }
+
+  // 処理時間計測
+  startTimer(name) {
+    this.startTimes[name] = performance.now();
+  }
+
+  endTimer(name) {
+    if (!this.startTimes[name]) return null;
+    const elapsed = ((performance.now() - this.startTimes[name]) / 1000).toFixed(2);
+    delete this.startTimes[name];
+    return elapsed;
+  }
+
+  // ログクリア（ログと統計情報）
+  clear() {
+    this.logs = [];
+    const logEl = document.getElementById('logConsole');
+    if (logEl) logEl.innerHTML = '';
+    this._updateStats();
+  }
+
+  // UI 更新（ログライン + 統計情報）
+  _updateUI(level, message) {
+    const logEl = document.getElementById('logConsole');
+    if (!logEl) return;
+
+    const logLine = document.createElement('div');
+    logLine.className = 'log-line log-' + level.toLowerCase();
+
+    const timestamp = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+    logLine.innerHTML = `<span class="log-time">${timestamp}</span> ` +
+                        `<span class="log-level">[${level}]</span> ` +
+                        `<span class="log-msg">${escapeHtml(message)}</span>`;
+
+    logEl.appendChild(logLine);
+    logEl.scrollTop = logEl.scrollHeight;  // 最下部にスクロール
+
+    // 統計情報も更新
+    this._updateStats();
+  }
+
+  // ログファイル保存（手動）
+  async save() {
+    return this._saveLogFile('manual');
+  }
+
+  // ログファイル自動保存（内部用）
+  async _saveLogFile(mode = 'auto') {
+    const filename = `logs_${this.sessionId}.txt`;
+    const content = this._formatLogText();
+
+    try {
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+
+      const stats = this.getStats();
+      const msg = `ログファイル保存完了: ${filename} (エラー:${stats.error}, 警告:${stats.warn}, 成功:${stats.success})`;
+
+      if (mode === 'manual') {
+        this.success(msg);
+      } else if (mode === 'auto-error') {
+        console.error('[AUTO-SAVE] ' + msg);
+      } else if (mode === 'auto-finish') {
+        console.log('[AUTO-SAVE] ' + msg);
+      }
+
+      return filename;
+    } catch (err) {
+      this.error('ログ保存に失敗: ' + err.message);
+      return null;
+    }
+  }
+
+  // 処理完了時の自動ログ保存
+  autoSaveOnFinish() {
+    return this._saveLogFile('auto-finish');
+  }
+
+  // エラー発生時の自動ログ保存
+  autoSaveOnError() {
+    return this._saveLogFile('auto-error');
+  }
+
+  // ログ形式化
+  _formatLogText() {
+    const lines = [];
+    lines.push('='.repeat(60));
+    lines.push('処理ログ');
+    lines.push('実行日時: ' + new Date().toLocaleString('ja-JP'));
+    lines.push('セッション: ' + this.sessionId);
+    lines.push('='.repeat(60));
+    lines.push('');
+
+    for (const log of this.logs) {
+      lines.push(`[${log.timestamp}] [${log.level}] ${log.message}`);
+      if (log.details) {
+        lines.push('  詳細: ' + JSON.stringify(log.details, null, 2));
+      }
+    }
+
+    lines.push('');
+    lines.push('='.repeat(60));
+    lines.push('ログ終了');
+    lines.push('='.repeat(60));
+
+    return lines.join('\n');
+  }
+
+  // 統計情報取得
+  getStats() {
+    const stats = {
+      total: this.logs.length,
+      error: this.logs.filter(l => l.level === 'ERROR').length,
+      warn: this.logs.filter(l => l.level === 'WARN').length,
+      success: this.logs.filter(l => l.level === 'SUCCESS').length,
+      info: this.logs.filter(l => l.level === 'INFO').length
+    };
+    return stats;
+  }
+
+  // 統計情報をUIに反映
+  _updateStats() {
+    const stats = this.getStats();
+    const statsEl = document.getElementById('logStats');
+    if (!statsEl) return;
+
+    let statsHtml = '';
+    if (stats.error > 0) statsHtml += `<span class="stat-error">❌ ${stats.error}</span>`;
+    if (stats.warn > 0) statsHtml += `<span class="stat-warn">⚠️ ${stats.warn}</span>`;
+    if (stats.success > 0) statsHtml += `<span class="stat-success">✅ ${stats.success}</span>`;
+    if (stats.info > 0) statsHtml += `<span class="stat-info">ℹ️ ${stats.info}</span>`;
+
+    statsEl.innerHTML = statsHtml || '<span class="stat-empty">ログなし</span>';
+  }
+}
+
+// グローバル logger インスタンス
+const logger = new Logger();
+logger.debugMode = false;  // デバッグモード ON/OFF
+
+/* ==================== 平面直角座標系選択マップ ==================== */
+// 日本の各系番号の領域（経度・緯度の目安）
+const ZONE_BOUNDS = {
+  1: { name: '北海道西部', center: [43.2, 129.5], bounds: [[42, 128], [45, 131]] },
+  2: { name: '北海道中部', center: [43.2, 131.0], bounds: [[42, 130], [45, 132]] },
+  3: { name: '北海道東部', center: [43.2, 133.0], bounds: [[42, 132], [45, 134]] },
+  4: { name: '青森・秋田・山形', center: [40, 133.5], bounds: [[38, 132], [42, 135]] },
+  5: { name: '宮城', center: [38.5, 140.5], bounds: [[37, 139], [40, 142]] },
+  6: { name: '福島', center: [37.5, 140], bounds: [[36, 139], [39, 141]] },
+  7: { name: '栃木・茨城・埼玉', center: [36.5, 140], bounds: [[35.5, 139.5], [37.5, 140.5]] },
+  8: { name: '東京・伊豆・小笠原', center: [35.5, 138.5], bounds: [[34, 137], [37, 140]] },
+  9: { name: '神奈川・静岡', center: [35, 139], bounds: [[34, 138], [36, 140]] },
+  10: { name: '山梨・長野・岐阜', center: [36.5, 137.5], bounds: [[35.5, 135.5], [37.5, 139.5]] },
+  11: { name: '愛知・三重', center: [34.5, 136.5], bounds: [[33.5, 135], [35.5, 138]] },
+  12: { name: '滋賀・京都・大阪・兵庫・奈良・和歌山', center: [34.5, 135.5], bounds: [[33.5, 134], [35.5, 137]] },
+  13: { name: '島根・鳥取', center: [35, 133.5], bounds: [[34, 132], [36, 135]] },
+  14: { name: '岡山・広島・山口', center: [34, 133.5], bounds: [[33, 132], [35, 135]] },
+  15: { name: '福岡・佐賀', center: [33, 130.5], bounds: [[32, 129], [34, 132]] },
+  16: { name: '熊本', center: [32.5, 130.5], bounds: [[31.5, 129.5], [33.5, 131.5]] },
+  17: { name: '大分', center: [33, 131.5], bounds: [[32, 130.5], [34, 132.5]] },
+  18: { name: '宮崎・鹿児島', center: [31, 131], bounds: [[30, 130], [32, 132]] },
+  19: { name: '沖縄', center: [26, 154], bounds: [[24, 152], [28, 156]] }
+};
+
+// 地図初期化（DOMContentLoadedで実行）
+document.addEventListener('DOMContentLoaded', () => {
+  initializeZoneMap();
+});
+
+function initializeZoneMap() {
+  const mapContainer = document.getElementById('zoneMapContainer');
+  if (!mapContainer) return;
+
+  // Leafletマップを初期化
+  const map = L.map(mapContainer, {
+    center: [36.5, 138],
+    zoom: 5,
+    scrollWheelZoom: true
+  });
+
+  // タイルレイヤー（OpenStreetMap）
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 15
+  }).addTo(map);
+
+  // 各系の領域を矩形で表示
+  const rectangles = {};
+  for (let z = 1; z <= 19; z++) {
+    const bounds = ZONE_BOUNDS[z];
+    if (!bounds) continue;
+
+    const rect = L.rectangle(bounds.bounds, {
+      color: 'rgba(100, 150, 255, 0.3)',
+      fillColor: 'rgba(100, 150, 255, 0.1)',
+      weight: 1,
+      opacity: 0.5,
+      fillOpacity: 0.1,
+      interactive: false
+    }).addTo(map);
+
+    rectangles[z] = rect;
+  }
+
+  // 選択状態のマーカー
+  let selectedMarker = null;
+
+  // マップクリックイベント
+  map.on('click', (e) => {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+
+    // 緯度経度から系番号を判定
+    const zone = autoDetectZoneFromCoord(lat, lon);
+
+    // ドロップダウンを更新
+    document.getElementById('coordZone').value = String(zone);
+
+    // マーカーを配置
+    if (selectedMarker) map.removeLayer(selectedMarker);
+    selectedMarker = L.marker([lat, lon], {
+      title: `系${zone}: ${ZONE_BOUNDS[zone].name}`
+    }).addTo(map);
+
+    // ステータスを更新
+    document.getElementById('coordZoneStatus').textContent =
+      `✓ 地図で選択: 系${zone} (${ZONE_BOUNDS[zone].name})`;
+
+    // ログに記録
+    logger.info('地図から系番号を選択', {
+      zone: zone,
+      name: ZONE_BOUNDS[zone].name,
+      lat: lat.toFixed(6),
+      lon: lon.toFixed(6)
+    });
+  });
+
+  // 選択系の領域をハイライト
+  document.getElementById('coordZone').addEventListener('change', (e) => {
+    const zone = parseInt(e.target.value, 10);
+
+    // すべての矩形をリセット
+    for (let z = 1; z <= 19; z++) {
+      if (rectangles[z]) {
+        rectangles[z].setStyle({
+          color: 'rgba(100, 150, 255, 0.3)',
+          fillColor: 'rgba(100, 150, 255, 0.1)',
+          weight: 1,
+          opacity: 0.5,
+          fillOpacity: 0.1
+        });
+      }
+    }
+
+    // 選択系の領域をハイライト
+    if (zone >= 1 && zone <= 19 && rectangles[zone]) {
+      rectangles[zone].setStyle({
+        color: 'rgba(0, 200, 100, 0.8)',
+        fillColor: 'rgba(0, 200, 100, 0.3)',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.3
+      });
+
+      // 領域を中心に表示
+      map.fitBounds(rectangles[zone].getBounds(), { padding: [50, 50] });
+    }
+  });
+}
+
+// 緯度経度から系番号を判定
+function autoDetectZoneFromCoord(lat, lon) {
+  let bestZone = 8, bestDist = Infinity;
+
+  for (let z = 1; z <= 19; z++) {
+    const bounds = ZONE_BOUNDS[z];
+    if (!bounds) continue;
+
+    const center = bounds.center;
+    const dist = Math.hypot(lat - center[0], (lon - center[1]) * 1.5);
+
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestZone = z;
+    }
+  }
+
+  return bestZone;
+}
+</script>
 </head>
 <body>
+<!-- 【機能⑨】ログパネル -->
+<div id="logPanel" class="log-panel">
+  <div class="log-panel-header">
+    <div class="log-panel-title">📋 処理ログ</div>
+    <div id="logStats" class="log-stats"></div>
+    <div class="log-panel-buttons">
+      <button id="logToggleBtn" class="log-btn" title="展開/折畳">▼</button>
+      <button id="logDebugToggle" class="log-btn" title="デバッグモード">🔍</button>
+      <button id="logSaveBtn" class="log-btn" title="保存">💾</button>
+      <button id="logClearBtn" class="log-btn" title="クリア">🗑️</button>
+    </div>
+  </div>
+  <div id="logConsole" class="log-console"></div>
+</div>
+
 <div class="app">
   <div class="hero">
     <h1>地図XML / 標高データ DXF変換</h1>
@@ -571,6 +1217,8 @@ input[type="file"] { display: none; }
     <button class="tab-btn" data-tab="coordTxtPanel">④ 座標TXT → DXF</button>
     <button class="tab-btn" data-tab="chibanPanel">⑤ 地番検索</button>
     <button class="tab-btn" data-tab="dxf3dPanel">⑥ 等高線DXF 3D</button>
+    <button class="tab-btn" data-tab="sunPanel">⑦ 太陽方位</button>
+    <button class="tab-btn" data-tab="mergePanel">⑧ DXF重ね合わせ</button>
   </div>
 
   <div class="content">
@@ -593,6 +1241,75 @@ input[type="file"] { display: none; }
               </div>
               <button class="rm" id="coordRemoveBtn" type="button">×</button>
             </div>
+
+            <!-- 系番号選択：地図または手動選択 -->
+            <div class="section" style="margin-top: 16px; background: rgba(99,179,237,.08); border: 1px solid rgba(99,179,237,.2);">
+              <h2>平面直角座標系</h2>
+              <p class="hint">地図をクリックするか、ドロップダウンで選択してください。</p>
+
+              <!-- 地図コンテナ -->
+              <div id="zoneMapContainer" style="
+                width: 100%;
+                height: 280px;
+                border: 1px solid rgba(99,179,237,.3);
+                border-radius: 8px;
+                margin-top: 12px;
+                background: rgba(0,0,0,.2);
+                overflow: hidden;
+                cursor: crosshair;
+              "></div>
+
+              <!-- 選択状態表示 -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                <div>
+                  <label class="mini" style="color: var(--muted); display: block; margin-bottom: 4px;">系番号</label>
+                  <select id="coordZone" style="
+                    width: 100%;
+                    padding: 8px 10px;
+                    background: var(--panel-2);
+                    color: var(--text);
+                    border: 1px solid var(--line);
+                    border-radius: 6px;
+                    font-size: 0.9rem;
+                    cursor: pointer;
+                  ">
+                    <option value="0">自動検出</option>
+                    <option value="1">1系（北海道西部）</option>
+                    <option value="2">2系（北海道中部）</option>
+                    <option value="3">3系（北海道東部）</option>
+                    <option value="4">4系（青森・秋田・山形）</option>
+                    <option value="5">5系（宮城）</option>
+                    <option value="6">6系（福島）</option>
+                    <option value="7">7系（栃木・茨城・埼玉）</option>
+                    <option value="8">8系（東京・伊豆・小笠原）</option>
+                    <option value="9">9系（神奈川・静岡）</option>
+                    <option value="10">10系（山梨・長野・岐阜）</option>
+                    <option value="11">11系（愛知・三重）</option>
+                    <option value="12">12系（滋賀・京都・大阪・兵庫・奈良・和歌山）</option>
+                    <option value="13">13系（島根・鳥取）</option>
+                    <option value="14">14系（岡山・広島・山口）</option>
+                    <option value="15">15系（福岡・佐賀）</option>
+                    <option value="16">16系（熊本）</option>
+                    <option value="17">17系（大分）</option>
+                    <option value="18">18系（宮崎・鹿児島）</option>
+                    <option value="19">19系（沖縄）</option>
+                  </select>
+                </div>
+                <div id="coordZoneStatus" style="
+                  padding: 8px 10px;
+                  background: rgba(99,179,237,.1);
+                  border: 1px solid rgba(99,179,237,.2);
+                  border-radius: 6px;
+                  display: flex;
+                  align-items: center;
+                  font-size: 0.85rem;
+                  color: var(--muted);
+                ">
+                  地図をクリックするか選択してください
+                </div>
+              </div>
+            </div>
+
             <div class="btn-row">
               <button class="btn" id="coordConvertBtn" disabled>DXF変換</button>
             </div>
@@ -1030,6 +1747,156 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           <div class="section">
             <h2>表示仕様</h2>
             <p class="hint">DXFの X は Three.js の X、水平方向の DXF Y は Three.js の -Z、標高値は Three.js の Y（高さ）に割り当てます。読み込んだ標高の最小値を基準に持ち上げ、元DXFの東西南北を保ったまま表示します。</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+    <section class="panel" id="sunPanel">
+      <div class="sun-layout">
+        <div class="sun-map-col">
+          <div class="section">
+            <h2>地点をクリック</h2>
+            <p class="hint" style="margin-bottom:10px">地図上をクリックすると、その地点の現在日・夏至・冬至について、1時間ごとの太陽方向を色分け表示します。</p>
+            <div id="sunMapEl" class="sun-map"></div>
+            <div class="status-bar sb-hint" id="sunStatusBar" style="margin-top:12px">地図をクリックして地点を選択してください</div>
+          </div>
+        </div>
+
+        <div class="sun-side-col">
+          <div class="section">
+            <h2>操作パネル</h2>
+            <div class="sun-meta">
+              <div class="summary-item"><strong>住所</strong><span id="sunAddressValue">未選択</span></div>
+              <div class="summary-item"><strong>緯度・経度</strong><span id="sunLatLonValue">-</span></div>
+              <div class="summary-item"><strong>高度</strong><span id="sunElevationValue">-</span></div>
+            </div>
+            <div class="sun-control-row" style="margin-top:14px">
+              <div class="summary-item"><strong>線の長さ</strong><span>地図の表示範囲に合わせて自動調整</span></div>
+              <label class="check"><input id="sunShowAerial" type="checkbox"> 航空写真を背景に使用</label>
+              <label class="check"><input id="sunShowSummer" type="checkbox"> 夏至を表示</label>
+              <label class="check"><input id="sunShowWinter" type="checkbox"> 冬至を表示</label>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>凡例</h2>
+            <div class="sun-legend">
+              <div class="sun-legend-item" style="color:#f6ad55"><span class="sun-swatch"></span><span>現在日</span></div>
+              <div class="sun-legend-item" style="color:#63b3ed"><span class="sun-swatch"></span><span>夏至</span></div>
+              <div class="sun-legend-item" style="color:#f472b6"><span class="sun-swatch"></span><span>冬至</span></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>日付ごとの情報</h2>
+            <div class="sun-cards" id="sunCards">
+              <div class="summary-item"><span class="hint">地点を選ぶと、現在日・夏至・冬至の日の出／日の入り時刻と表示対象日をここに表示します。</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="panel" id="mergePanel">
+      <div class="panel-grid">
+        <div>
+          <div class="section">
+            <h2>基準DXF（機能①出力）</h2>
+            <p class="hint">地図XMLから変換されたDXFファイルを選択します。</p>
+            <div class="drop-zone" id="mergeBaseDxfZone">
+              <span class="icon">📋</span>
+              <div class="main">基準DXFをドロップ</div>
+              <div class="sub">クリックして.dxfを選択</div>
+            </div>
+            <input type="file" id="mergeBaseDxfInput" accept=".dxf">
+            <div class="file-badge" id="mergeBaseDxfBadge" style="display:none">
+              <div class="info">
+                <div class="name" id="mergeBaseDxfName">-</div>
+                <div class="size" id="mergeBaseDxfSize">-</div>
+              </div>
+              <button class="rm" id="mergeBaseDxfRemove" type="button">×</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>重ね合わせDXF（機能③出力）</h2>
+            <p class="hint">標高データから変換されたDXFファイルを選択します。</p>
+            <div class="drop-zone" id="mergeOverlayDxfZone">
+              <span class="icon">📋</span>
+              <div class="main">重ね合わせDXFをドロップ</div>
+              <div class="sub">クリックして.dxfを選択</div>
+            </div>
+            <input type="file" id="mergeOverlayDxfInput" accept=".dxf">
+            <div class="file-badge" id="mergeOverlayDxfBadge" style="display:none">
+              <div class="info">
+                <div class="name" id="mergeOverlayDxfName">-</div>
+                <div class="size" id="mergeOverlayDxfSize">-</div>
+              </div>
+              <button class="rm" id="mergeOverlayDxfRemove" type="button">×</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>重ね合わせ設定</h2>
+            <div class="field-grid">
+              <div class="field">
+                <label for="mergeAllowScaleCorrection">スケール補正</label>
+                <select id="mergeAllowScaleCorrection">
+                  <option value="false">補正なし</option>
+                  <option value="true" selected>自動補正</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="mergeLatLonTolerance">許容誤差（m）</label>
+                <input id="mergeLatLonTolerance" type="number" min="0.1" step="0.1" value="100">
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn" id="mergeDxfBtn" disabled>DXFを重ね合わせ</button>
+          </div>
+
+          <div class="progress-section" id="mergeProgressSection">
+            <div class="progress-track"><div class="progress-fill" id="mergeProgressFill"></div></div>
+            <div class="progress-label" id="mergeProgressLabel">待機中</div>
+          </div>
+          <div class="message warn" id="mergeWarnBox"></div>
+          <div class="message error" id="mergeErrorBox"></div>
+          <div class="message success" id="mergeSuccessBox"></div>
+          <div class="status-bar sb-hint" id="mergeStatusBar">2つのDXFファイルをドロップしてください</div>
+        </div>
+
+        <aside>
+          <div class="section">
+            <h2>目的と使い方</h2>
+            <p class="hint"><b>【目的】</b><br>
+            機能①（地図XML → DXF）と機能③（標高データ → DXF）で出力されたDXFを、lat/lon情報を基準にして重ね合わせます。同じ地域の地籍図データと等高線データを統一された座標系で参照したいときに使います。</p>
+            <p class="hint" style="margin-top:10px"><b>【使い方】</b></p>
+            <ol class="hint" style="padding-left:1.4em;line-height:2.3;margin-top:4px">
+              <li>機能①で出力した地図DXFをドロップ（基準DXF）</li>
+              <li>機能③で出力した標高DXFをドロップ（重ね合わせDXF）</li>
+              <li>「DXFを重ね合わせ」をクリック</li>
+              <li>重ね合わせ済みDXFがダウンロードされます</li>
+              <li>JW-CADで開いて確認・編集</li>
+            </ol>
+          </div>
+          <div class="section">
+            <h2>位置合わせ方法</h2>
+            <p class="hint">両方のDXFに含まれるlat/lon基準点（POINTエンティティ）を自動検出し、以下の順に計算します：</p>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:4px">
+              <li><b>2点以上の場合</b>：平行移動 + 回転 + 必要に応じてスケール補正</li>
+              <li><b>1点のみの場合</b>：平行移動のみ（警告表示）</li>
+              <li><b>基準点なし</b>：中止（エラー表示）</li>
+            </ul>
+          </div>
+          <div class="section">
+            <h2>出力レイヤー</h2>
+            <p class="hint">入力DXFのレイヤー名に接頭辞を付けて出力します：</p>
+            <ul class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:4px">
+              <li><b>F01_</b> : 機能①由来のレイヤー</li>
+              <li><b>F03_</b> : 機能③由来のレイヤー</li>
+            </ul>
+            <p class="hint" style="margin-top:8px">例：`BOUNDARY` → `F01_BOUNDARY`、`LINE` → `F03_LINE`</p>
           </div>
         </aside>
       </div>
@@ -1666,6 +2533,450 @@ function publicCoordToLatLon(x, y, zone) {
   return [phi * 180/Math.PI, lam * 180/Math.PI];
 }
 
+/* EPSG:6676 公共座標(m) → EPSG:4326 WGS84経緯度(°) に変換
+   戻り値順序：[lon, lat] (経度, 緯度) */
+function coordinateToLatLon(x, y, zone) {
+  const result = publicCoordToLatLon(x, y, zone);
+  if (!result) return null;
+  return [result[1], result[0]]; /* [lon, lat] に反転 */
+}
+
+/* DXF に lat/lon エンティティを追加（シンプル版）
+   ENTITIESセクションの ENDSEC 直前にPOINT/TEXTを挿入 */
+function appendLatLonEntitiesToDxf(dxfText, latlonData) {
+  logger.info('DXF追記: appendLatLonEntitiesToDxf開始');
+
+  if (!latlonData || !latlonData.entities) {
+    logger.error('DXF追記: latlonData が無効（null または undefined）');
+    return dxfText;
+  }
+
+  const { points: pointEntities, labels: labelEntities } = latlonData.entities;
+
+  logger.info('DXF追記: 入力エンティティ数', {
+    POINT: pointEntities ? pointEntities.length : 0,
+    TEXT: labelEntities ? labelEntities.length : 0
+  });
+
+  if (!pointEntities || pointEntities.length === 0) {
+    logger.warn('DXF追記: POINTエンティティが0個 - 処理スキップ');
+    return dxfText;
+  }
+
+  // ENTITIES セクションを探す（複数のパターンに対応）
+  let entitiesStart = -1;
+
+  // パターン1: "  0\nENTITIES\n" または "  0\n  ENTITIES\n"
+  let match1 = dxfText.match(/^\s*0\s*\nENTITIES\s*\n/m);
+  if (match1) {
+    entitiesStart = dxfText.indexOf(match1[0]) + match1[0].length;
+    logger.debug('DXF追記: ENTITIESセクション検出（パターン1）');
+  }
+
+  // パターン2: "\n  0\n  ENTITIES\n"
+  if (entitiesStart === -1) {
+    match1 = dxfText.match(/\n\s*0\s*\nENTITIES\s*\n/);
+    if (match1) {
+      entitiesStart = dxfText.indexOf(match1[0]) + match1[0].length;
+      logger.debug('DXF追記: ENTITIESセクション検出（パターン2）');
+    }
+  }
+
+  // パターン3: より簡単な検索
+  if (entitiesStart === -1) {
+    const idx = dxfText.toUpperCase().indexOf('ENTITIES');
+    if (idx !== -1) {
+      // ENTITIES の直後の改行を探す
+      const lineEnd = dxfText.indexOf('\n', idx);
+      if (lineEnd !== -1) {
+        entitiesStart = lineEnd + 1;
+        logger.debug('DXF追記: ENTITIESセクション検出（パターン3・単純検索）');
+      }
+    }
+  }
+
+  if (entitiesStart === -1) {
+    logger.error('DXF追記: ENTITIES セクションが見つかりません', { dxfLength: dxfText.length });
+    logger.debug('DXFの先頭1000文字:', { text: dxfText.substring(0, 1000) });
+    return dxfText;
+  }
+
+  logger.debug('DXF追記: ENTITIESセクション開始位置', { index: entitiesStart });
+
+  // ENDSEC を探す（ENTITIESセクション後の最初のENDSEC）
+  // 複数のパターンに対応
+  let endsecIndex = dxfText.indexOf('  0\n  ENDSEC\n', entitiesStart);
+  if (endsecIndex === -1) {
+    endsecIndex = dxfText.indexOf('\n  0\n  ENDSEC\n', entitiesStart);
+  }
+  if (endsecIndex === -1) {
+    endsecIndex = dxfText.indexOf('0\nENDSEC\n', entitiesStart);
+  }
+  if (endsecIndex === -1) {
+    // 最後の手段：ENDSEC を検索
+    const endsecMatch = dxfText.toUpperCase().indexOf('ENDSEC', entitiesStart);
+    if (endsecMatch !== -1) {
+      // ENDSEC の前の改行を探す
+      const lineStart = dxfText.lastIndexOf('\n', endsecMatch);
+      if (lineStart !== -1) {
+        endsecIndex = lineStart;
+      }
+    }
+  }
+  if (endsecIndex === -1) {
+    logger.error('DXF追記: ENDSEC が見つかりません');
+    return dxfText;
+  }
+
+  logger.debug('DXF追記: ENDSECセクション位置', { index: endsecIndex });
+
+  // エンティティコードを生成（DXF形式）
+  let entityCode = '';
+
+  // 1. POINTエンティティを追加
+  for (const pt of pointEntities) {
+    entityCode += '  0\n';          // Group code
+    entityCode += 'POINT\n';         // Entity type
+    entityCode += '  8\n';           // Layer code
+    entityCode += pt.layer + '\n';   // Layer name = "5"
+    entityCode += ' 10\n';           // X coordinate
+    entityCode += pt.x.toFixed(2) + '\n';  // X value (mm)
+    entityCode += ' 20\n';           // Y coordinate
+    entityCode += pt.y.toFixed(2) + '\n';  // Y value (mm)
+  }
+
+  logger.success('DXF追記: POINT作成完了', {
+    数: pointEntities.length,
+    レイヤ: pointEntities.length > 0 ? pointEntities[0].layer : 'なし'
+  });
+
+  // 2. TEXTエンティティを追加
+  logger.info('DXF追記: TEXT処理開始', { 数: labelEntities.length });
+
+  for (let i = 0; i < labelEntities.length; i++) {
+    const txt = labelEntities[i];
+
+    // DXFへ書き込む前に詳細をログ出力
+    logger.info('【DXF書き込み前】TEXT[' + i + ']の内容確認', {
+      type: typeof txt,
+      keys: Object.keys(txt),
+      layer: txt.layer,
+      x: txt.x,
+      y: txt.y,
+      height: txt.height,
+      text_type: typeof txt.text,
+      text_length: txt.text ? txt.text.length : 'undefined',
+      text_value: txt.text,
+      text_isString: typeof txt.text === 'string',
+      text_isEmpty: !txt.text || txt.text.length === 0,
+      text_charCodes: txt.text ? txt.text.split('').map(c => c.charCodeAt(0)).join(',') : 'なし',
+      text_split_by_newline: txt.text ? txt.text.split('\n') : []
+    });
+
+    // 念のため、text の値をチェック
+    if (!txt.text || txt.text === undefined || txt.text === null) {
+      logger.error('【エラー】TEXT内容が無効', {
+        text: txt.text,
+        type: typeof txt.text
+      });
+      continue;
+    }
+
+    // DXF コード生成
+    const dxfCodeBefore = entityCode.length;
+
+    entityCode += '  0\n';          // Group code
+    entityCode += 'TEXT\n';          // Entity type
+    entityCode += '  8\n';           // Layer code
+    entityCode += txt.layer + '\n';  // Layer name = "5"
+    entityCode += ' 10\n';           // X coordinate
+    entityCode += txt.x.toFixed(2) + '\n';  // X value (mm)
+    entityCode += ' 20\n';           // Y coordinate
+    entityCode += txt.y.toFixed(2) + '\n';  // Y value (mm)
+    entityCode += ' 40\n';           // Text height code
+    entityCode += txt.height.toFixed(2) + '\n';  // Height (mm)
+    entityCode += '  1\n';           // Text string code
+    entityCode += txt.text + '\n';   // Text content (lon/lat)
+
+    const dxfCodeAfter = entityCode.length;
+    const textDxfCode = entityCode.substring(dxfCodeBefore);
+
+    logger.success('【DXF書き込み完了】TEXT[' + i + ']', {
+      layer: txt.layer,
+      座標_x_mm: txt.x.toFixed(2),
+      座標_y_mm: txt.y.toFixed(2),
+      文字高さ_mm: txt.height.toFixed(2),
+      テキスト内容: txt.text,
+      テキスト長: txt.text.length,
+      DXFコード生成数: dxfCodeAfter - dxfCodeBefore,
+      レイヤ確認: 'レイヤ ' + txt.layer,
+      DXFコード_先頭100文字: textDxfCode.substring(0, 100),
+      DXFコード完全: textDxfCode
+    });
+  }
+
+  logger.success('DXF追記: TEXT作成完了', {
+    数: labelEntities.length,
+    レイヤ: labelEntities.length > 0 ? labelEntities[0].layer : 'なし'
+  });
+
+  // 3. DXFテキストを組み立て
+  const beforeSize = dxfText.length;
+  const result = dxfText.substring(0, endsecIndex) + entityCode + dxfText.substring(endsecIndex);
+  const afterSize = result.length;
+
+  logger.success('DXF追記: エンティティ挿入完了', {
+    挿入前_bytes: beforeSize,
+    挿入後_bytes: afterSize,
+    増加量_bytes: afterSize - beforeSize
+  });
+
+  logger.info('保存後エンティティ数（推定）', {
+    POINT: pointEntities.length,
+    TEXT: labelEntities.length,
+    合計: pointEntities.length + labelEntities.length
+  });
+
+  return result;
+}
+
+/* lat/lon 基準点を生成（シンプル版：中央に1点だけ）
+   図面中央にPOINT + TEXTを1点だけ配置してテスト */
+function generateLatLonControlPoints(opts) {
+  const {
+    x0, x1, y0, y1,      // DXF座標範囲 (mm)
+    ox, oy,               // オリジン・オフセット (mm)
+    zone                  // 平面直角座標系の系番号
+  } = opts;
+
+  // 【重要】zone値の確認：関数入口
+  logger.success('【generateLatLonControlPoints関数入口】zone値確認', {
+    受け取ったzone: zone,
+    zone_型: typeof zone,
+    zone_isNumber: typeof zone === 'number',
+    zone_が8か: zone === 8,
+    zone_が16か: zone === 16,
+    期待値: zone === 8 ? '✓ 正常：EPSG:6676を使用' : zone === 16 ? '✗ エラー：EPSG:6684が使用されます' : '✗ 不明'
+  });
+
+  logger.info('lat/lon処理: generateLatLonControlPoints開始', { zone: zone });
+
+  if (!zone) {
+    logger.error('zone未定義のため処理スキップ', { zone: zone, type: typeof zone });
+    return { points: [], entities: { points: [], labels: [], leaders: [] } };
+  }
+
+  const dxfWidth = x1 - x0;
+  const dxfHeight = y1 - y0;
+
+  if (dxfWidth <= 0 || dxfHeight <= 0) {
+    logger.warn('DXF座標範囲が無効', { x0, x1, y0, y1 });
+    return { points: [], entities: { points: [], labels: [], leaders: [] } };
+  }
+
+  // 図面中央座標（DXF単位：mm、オリジン相対）
+  const centerDxfX = x0 + dxfWidth / 2;
+  const centerDxfY = y0 + dxfHeight / 2;
+
+  logger.info('【座標計算ステップ1】DXF座標範囲から中央座標を計算', {
+    DXF範囲_x_min_mm: x0.toFixed(2),
+    DXF範囲_x_max_mm: x1.toFixed(2),
+    DXF範囲_y_min_mm: y0.toFixed(2),
+    DXF範囲_y_max_mm: y1.toFixed(2),
+    DXF幅_mm: dxfWidth.toFixed(2),
+    DXF高さ_mm: dxfHeight.toFixed(2),
+    計算結果_中央X_mm: centerDxfX.toFixed(2),
+    計算結果_中央Y_mm: centerDxfY.toFixed(2)
+  });
+
+  logger.info('【座標計算ステップ2】オリジン・オフセット値の確認', {
+    ox_mm: ox.toFixed(2),
+    oy_mm: oy.toFixed(2),
+    意味: 'DXF座標 = 公共座標 * 1000 + offset'
+  });
+
+  // 【20点表示への完全切り替え】
+  // 旧い1点表示処理は削除済み
+
+  const points = [];
+  const pointEntities = [];
+  const labelEntities = [];
+
+  // グリッド状に複数ポイント（約20個）を配置
+  // DXFの範囲をグリッド分割: 4列 × 5行
+  const gridCols = 4;
+  const gridRows = 5;
+  const gridStepX = (x1 - x0) / (gridCols + 1);
+  const gridStepY = (y1 - y0) / (gridRows + 1);
+
+  logger.info('【グリッド配置】複数ポイント生成開始', {
+    DXF_xMin_mm: x0.toFixed(2),
+    DXF_xMax_mm: x1.toFixed(2),
+    DXF_yMin_mm: y0.toFixed(2),
+    DXF_yMax_mm: y1.toFixed(2),
+    gridCols: gridCols,
+    gridRows: gridRows,
+    gridStepX_mm: gridStepX.toFixed(2),
+    gridStepY_mm: gridStepY.toFixed(2),
+    予想ポイント数: gridCols * gridRows
+  });
+
+  // グリッドポイントを生成
+  for (let row = 1; row <= gridRows; row++) {
+    for (let col = 1; col <= gridCols; col++) {
+      const pointId = 'CP_' + row + '_' + col;
+      const gridDxfX = x0 + gridStepX * col;
+      const gridDxfY = y0 + gridStepY * row;
+
+      // DXF座標 → 公共座標への変換
+      // 【重要】DXF座標系は[東(mm), 北(mm)]なので、X/Yが入れ替わる
+      // 正しい計算: pubX = (DXF_Y - oy) / 1000, pubY = (DXF_X - ox) / 1000
+      const gridPubX = (gridDxfY - oy) / 1000;  // 公共座標 北向き X (m)
+      const gridPubY = (gridDxfX - ox) / 1000;  // 公共座標 東向き Y (m)
+
+      // 公共座標 → lon/lat 変換
+      const gridLatLon = coordinateToLatLon(gridPubX, gridPubY, zone);
+
+      if (!gridLatLon) {
+        logger.warn('座標変換失敗: ポイント' + pointId, {
+          gridDxfX: gridDxfX.toFixed(2),
+          gridDxfY: gridDxfY.toFixed(2)
+        });
+        continue;
+      }
+
+      const [gridLon, gridLat] = gridLatLon;
+      const gridLonStr = gridLon.toFixed(6);
+      const gridLatStr = gridLat.toFixed(6);
+
+      // データ記録
+      points.push({
+        id: pointId,
+        source: 'GRID_' + row + '_' + col,
+        cadX: gridDxfX,
+        cadY: gridDxfY,
+        lon: gridLon,
+        lat: gridLat
+      });
+
+      // POINTエンティティ作成
+      pointEntities.push({
+        type: 'POINT',
+        layer: '5',
+        x: gridDxfX,
+        y: gridDxfY
+      });
+
+      // TEXTエンティティ作成（lon用とlat用の2個）
+      const textHeight = 150;  // グリッド用は小さめ
+      const lineHeight = textHeight * 1.2;
+      const textOffsetX = 200;
+      const textOffsetY = 200;
+
+      // TEXT 1: lon値
+      labelEntities.push({
+        type: 'TEXT',
+        layer: '5',
+        x: gridDxfX + textOffsetX,
+        y: gridDxfY + textOffsetY + lineHeight,
+        height: textHeight,
+        text: 'lon:' + gridLonStr,
+        halign: 0,
+        valign: 0
+      });
+
+      // TEXT 2: lat値
+      labelEntities.push({
+        type: 'TEXT',
+        layer: '5',
+        x: gridDxfX + textOffsetX,
+        y: gridDxfY + textOffsetY,
+        height: textHeight,
+        text: 'lat:' + gridLatStr,
+        halign: 0,
+        valign: 0
+      });
+
+      // 【詳細ログ】このポイントの全座標変換プロセス
+      logger.info('【グリッドポイント' + pointId + '】座標変換詳細', {
+        index: row + '_' + col,
+        POINT_CAD座標_x_mm: gridDxfX.toFixed(2),
+        POINT_CAD座標_y_mm: gridDxfY.toFixed(2),
+        '■变換に渡す座標': '---',
+        '変換入力_公共座標X(北)_m': gridPubX.toFixed(6),
+        '変換入力_公共座標Y(東)_m': gridPubY.toFixed(6),
+        使用EPSG: 'EPSG:6676（zone=' + zone + '）',
+        '■変換結果': '---',
+        変換後_lon: gridLonStr,
+        変換後_lat: gridLatStr,
+        '■テキスト配置': '---',
+        TEXT_lon座標_x: (gridDxfX + 200).toFixed(2),
+        TEXT_lon座標_y: (gridDxfY + 200 + 150 * 1.2).toFixed(2),
+        TEXT_lat座標_x: (gridDxfX + 200).toFixed(2),
+        TEXT_lat座標_y: (gridDxfY + 200).toFixed(2),
+        '■確認': 'POINT座標とlat/lon変換座標が一致'
+      });
+    }
+  }
+
+  logger.success('グリッドポイント生成完了', {
+    作成ポイント数: points.length,
+    作成POINT数: pointEntities.length,
+    作成TEXT数: labelEntities.length,
+    分布: gridCols + '列 × ' + gridRows + '行',
+    zone: zone,
+    使用EPSG: 'EPSG:6676 (JGD2011/平面直角座標系第8系)',
+    変換先: 'EPSG:4326 (WGS84)'
+  });
+
+  // 【詳細ログ】各グリッドポイントの座標変換結果
+  logger.info('【グリッド各ポイント詳細ログ】', {
+    総ポイント数: points.length,
+    期待される座標範囲: 'lon≒138.573, lat≒36.367'
+  });
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    logger.info('ポイント[' + i + '] ' + p.id, {
+      POINT_CAD座標_x_mm: p.cadX.toFixed(2),
+      POINT_CAD座標_y_mm: p.cadY.toFixed(2),
+      変換後_lon: p.lon.toFixed(6),
+      変換後_lat: p.lat.toFixed(6),
+      TEXT数: (i * 2 + 1) + '～' + (i * 2 + 2) + '番目'
+    });
+  }
+
+  // 最終確認：エンティティ数
+  logger.success('【最終確認】generateLatLonControlPoints 関数の戻り値', {
+    points_count: points.length,
+    pointEntities_count: pointEntities.length,
+    labelEntities_count: labelEntities.length,
+    期待値: points.length + 'ポイント = POINT ' + points.length + '個 + TEXT ' + (points.length * 2) + '個'
+  });
+
+  const returnObj = {
+    points: points,
+    entities: {
+      points: pointEntities,
+      labels: labelEntities,
+      leaders: []  // 引出線は今回スキップ
+    }
+  };
+
+  logger.debug('戻り値オブジェクト作成完了', {
+    structure: JSON.stringify({
+      points: 'array(' + returnObj.points.length + ')',
+      entities: {
+        points: 'array(' + returnObj.entities.points.length + ')',
+        labels: 'array(' + returnObj.entities.labels.length + ')',
+        leaders: 'array(' + returnObj.entities.leaders.length + ')'
+      }
+    })
+  });
+
+  return returnObj;
+}
+
 /* 緯経度から最近の系番号を自動判定 */
 function autoDetectZone(lat, lon) {
   let best = 9, bestD = Infinity;
@@ -1706,32 +3017,6 @@ function latLonToPublicCoord(lat, lon, zone) {
     A**5 / 120 * (5 - 18*T + T**2 + 72*C - 58*ep2)
   );
   return [pubX, pubY]; /* [北向きX m, 東向きY m] */
-}
-
-function detectZoneFromDoc(doc) {
-  /* 系番号を示す要素を探す */
-  for (const el of doc.querySelectorAll('*')) {
-    if (el.localName === '系番号' || el.localName === 'zoneNumber') {
-      const n = parseInt(el.textContent.trim(), 10);
-      if (n >= 1 && n <= 19) return n;
-    }
-  }
-  /* SRID 文字列から推定 (例: EPSG:2447 = 9系) */
-  const epsgToZone = {
-    2443:1,2444:2,2445:3,2446:4,2447:5,2448:6,2449:7,2450:8,
-    2451:9,2452:10,2453:11,2454:12,2455:13,2456:14,2457:15,
-    2458:16,2459:17,2460:18,2461:19,
-    6669:1,6670:2,6671:3,6672:4,6673:5,6674:6,6675:7,6676:8,
-    6677:9,6678:10,6679:11,6680:12,6681:13,6682:14,6683:15,
-    6684:16,6685:17,6686:18,6687:19
-  };
-  const xmlText = doc.documentElement.textContent;
-  const m = xmlText.match(/EPSG[:\s]*(\d{4,5})/);
-  if (m) {
-    const z = epsgToZone[parseInt(m[1], 10)];
-    if (z) return z;
-  }
-  return null;
 }
 
 /* -------------------- coordinate workflow -------------------- */
@@ -1809,13 +3094,19 @@ function clearCoordFile() {
 
 coordUi.convertBtn.addEventListener('click', async () => {
   if (!coordSelectedFile) return;
+
+  logger.info('機能①開始', { filename: coordSelectedFile.name });
+  logger.startTimer('feature01');
+
   coordUi.convertBtn.disabled = true;
   hideCoordMessages();
   coordUi.progressSec.style.display = 'block';
   setCoordProgress(0, 'ファイル読込中...');
   setStatus('coordStatusBar', 'sb-work', '変換中...');
   try {
+    logger.info('XML読込開始');
     const { xmlText, doc } = await readXmlDocFromFile(coordSelectedFile);
+    logger.success('XML読込成功', { filesize: xmlText.length });
     if (xmlText.length > 10_000_000) {
       coordUi.warnBox.textContent = '大きいファイルです。処理に時間がかかる場合があります。';
       coordUi.warnBox.style.display = 'block';
@@ -1825,37 +3116,170 @@ coordUi.convertBtn.addEventListener('click', async () => {
     setCoordProgress(16, '座標点を抽出中...');
     await uiYield();
     const points = parsePoints(doc);
+    logger.success('座標点抽出完了', { count: points.size });
 
     setCoordProgress(32, `曲線を抽出中（${points.size}点）...`);
     await uiYield();
     const curves = parseCurves(doc, points);
+    logger.success('曲線抽出完了', { count: curves.size });
 
     setCoordProgress(52, `面データを抽出中（${curves.size}曲線）...`);
     await uiYield();
     const surfaces = parseSurfaces(doc);
+    logger.success('面データ抽出完了', { count: surfaces.size });
 
     setCoordProgress(68, '筆界データ・基準点を抽出中...');
     await uiYield();
     const boundaryLines = parseBoundaryLines(doc);
     const boundaryPoints = parseBoundaryPoints(doc);
     const refPoints = parseRefPoints(doc);
+    logger.success('筆界データ抽出完了', { boundaries: boundaryLines.length, points: boundaryPoints.length });
 
     setCoordProgress(78, '筆データを抽出中...');
     await uiYield();
     const parcels = parseParcels(doc);
+    logger.success('筆データ抽出完了', { count: parcels.length });
 
     setCoordProgress(86, '図郭を抽出中...');
     await uiYield();
     const frames = parseFrames(doc);
+    logger.success('図郭抽出完了', { count: frames.length });
 
     setCoordProgress(92, 'DXFを生成中...');
     await uiYield();
-    const dxf = generateCoordinateDxf({
+
+    logger.info('DXF生成開始');
+    let dxf = generateCoordinateDxf({
       points, curves, surfaces, boundaryLines, boundaryPoints, refPoints, parcels, frames
     });
+    logger.success('DXF生成完了', { size: dxf.length });
+
+    // 【新規追加処理】lat/lon基準点を生成・追加（機能①用）
+    logger.info('lat/lon基準点生成処理開始');
+
+    // 系番号の決定: ユーザー選択 → XML自動検出 → デフォルト値 の優先順
+    // 【重要】ユーザーの地図/ドロップダウン選択が最優先です！
+    let zone = null;
+
+    // ステップ1: ユーザー手動選択を最優先で確認
+    logger.info('【優先度1】ユーザー手動選択を確認');
+    const userSelectedZone = parseInt(document.getElementById('coordZone').value, 10);
+    if (userSelectedZone && userSelectedZone >= 1 && userSelectedZone <= 19) {
+      zone = userSelectedZone;
+      logger.success('ステップ1: ユーザー手動選択を使用', {
+        zone: zone,
+        選択方法: 'ユーザーが地図またはドロップダウンで選択',
+        優先度: '【最優先】'
+      });
+    }
+
+    // ステップ2: ユーザー選択がない場合は XML から自動検出
+    if (!zone) {
+      logger.info('【優先度2】XMLから系番号を自動検出（ユーザー選択がないため）');
+      zone = detectZoneFromXml(doc, { points: Array.from(points.values()) });
+      if (zone) {
+        logger.info('ステップ2: XML自動検出成功', { zone: zone });
+      }
+    }
+
+    // ステップ3: XML検出も失敗した場合はデフォルト値
+    if (!zone) {
+      zone = 8;  // デフォルト値：第8系（東京・伊豆・小笠原）
+      logger.info('【優先度3】デフォルト値を使用', {
+        zone: zone,
+        理由: 'ユーザー選択なし、XML検出失敗のため、デフォルト値を適用'
+      });
+    }
+
+    // 系番号決定完了（または失敗）
+    if (zone) {
+      logger.success('系番号決定完了', { zone: zone });
+      document.getElementById('coordZone').value = String(zone);  // UIのドロップダウンを更新
+      document.getElementById('coordZoneStatus').textContent = `✓ 系番号 ${zone} で処理中`;
+    } else {
+      logger.error('系番号が確定できません', { message: '以下の方法を試してください: 1) XMLから自動検出, 2) ドロップダウンで手動選択, 3) 座標から推定' });
+      document.getElementById('coordZoneStatus').textContent = '⚠ ドロップダウンで系番号を選択してください';
+    }
+
+    if (zone) {
+      setCoordProgress(96, 'lat/lon基準点を生成中...');
+      await uiYield();
+
+      console.log('[機能①] curves.size: ' + curves.size);
+
+      // DXF座標範囲を計算
+      let dxfX0 = Infinity, dxfX1 = -Infinity, dxfY0 = Infinity, dxfY1 = -Infinity;
+      let pointCount = 0;
+      for (const coords of curves.values()) {
+        for (const [x, y] of coords) {
+          pointCount++;
+          // x=北向き(m), y=東向き(m) → DXF: [東(mm), 北(mm)] = [y*1000, x*1000]
+          const [dx, dy] = [y * 1000, x * 1000];
+          if (dx < dxfX0) dxfX0 = dx;
+          if (dx > dxfX1) dxfX1 = dx;
+          if (dy < dxfY0) dxfY0 = dy;
+          if (dy > dxfY1) dxfY1 = dy;
+        }
+      }
+
+      logger.debug('DXF座標計算完了: ' + pointCount + '点を処理');
+      logger.debug('DXF範囲', { x_min: dxfX0.toFixed(2), x_max: dxfX1.toFixed(2), y_min: dxfY0.toFixed(2), y_max: dxfY1.toFixed(2) });
+
+      if (Number.isFinite(dxfX0) && Number.isFinite(dxfX1) && Number.isFinite(dxfY0) && Number.isFinite(dxfY1)) {
+        const margin = Math.max(dxfX1 - dxfX0, dxfY1 - dxfY0) * 0.02;
+        const ox = dxfX0 - margin;
+        const oy = dxfY0 - margin;
+
+        logger.debug('オリジン・オフセット', { ox: ox.toFixed(2), oy: oy.toFixed(2) });
+
+        // 【重要】zone値確認：generateLatLonControlPoints呼び出し直前
+        logger.info('【generateLatLonControlPoints呼び出し直前】zone値の最終確認', {
+          zone_値: zone,
+          zone_型: typeof zone,
+          zone_が8か: zone === 8,
+          zone_が16か: zone === 16,
+          zone_の説明: zone === 8 ? '第8系（東京・伊豆・小笠原）EPSG:6676' : zone === 16 ? '第16系（熊本）EPSG:6684' : '不明'
+        });
+
+        const latlonData = generateLatLonControlPoints({
+          x0: dxfX0 - ox,
+          x1: dxfX1 - ox,
+          y0: dxfY0 - oy,
+          y1: dxfY1 - oy,
+          ox: ox,
+          oy: oy,
+          zone: zone,
+          source: 'F01',
+          pointCount: 20,
+          gridCols: 4,
+          gridRows: 5
+        });
+
+        logger.success('lat/lon基準点生成完了', {
+          points: latlonData?.points?.length || 0,
+          POINT: latlonData?.entities?.points?.length || 0,
+          TEXT: latlonData?.entities?.labels?.length || 0
+        });
+
+        const sizeBefore = dxf.length;
+        dxf = appendLatLonEntitiesToDxf(dxf, latlonData);
+        const sizeAfter = dxf.length;
+
+        logger.info('DXF最終サイズ', {
+          増加量_bytes: sizeAfter - sizeBefore,
+          合計_bytes: sizeAfter
+        });
+      } else {
+        logger.warn('DXF座標範囲が無効', { x0: dxfX0, x1: dxfX1, y0: dxfY0, y1: dxfY1 });
+      }
+    } else {
+      logger.warn('系番号検出失敗 - lat/lon基準点は追加されません');
+    }
 
     const filename = timestampedFilename(coordSelectedFile.name.replace(/\.[^.]+$/, '') + '.dxf');
+    logger.info('DXF保存開始');
     downloadTextFile(filename, dxf);
+    logger.success('DXF保存完了', { filename: filename, size: fmtSize(new Blob([dxf]).size) });
 
     const validBoundary = boundaryLines.filter(line => line.curveId && curves.has(line.curveId)).length;
     coordUi.successBox.innerHTML =
@@ -1865,14 +3289,145 @@ coordUi.convertBtn.addEventListener('click', async () => {
     coordUi.successBox.style.display = 'block';
     setCoordProgress(100, '完了！');
     setStatus('coordStatusBar', 'sb-ok', '変換完了。DXFファイルをJW-CADで開いてください');
+
+    const elapsed = logger.endTimer('feature01');
+    logger.success('機能①完了', { elapsed: elapsed + '秒' });
+
+    // 処理完了時に自動ログ保存
+    const logFilename = await logger.autoSaveOnFinish();
+    if (logFilename) {
+      logger.info('【重要】ログファイルが自動保存されました', {
+        filename: logFilename,
+        保存先: 'ダウンロードフォルダ',
+        用途: '次回の修正時に確認してください'
+      });
+    }
   } catch (err) {
+    logger.error('機能①エラー', { message: err.message, stack: err.stack });
+
+    // エラー発生時に自動ログ保存
+    const logFilename = await logger.autoSaveOnError();
+    if (logFilename) {
+      console.error('【重要】エラーログが自動保存されました: ' + logFilename + '（ダウンロードフォルダを確認）');
+    }
+
     showCoordError(err.message);
     setStatus('coordStatusBar', 'sb-err', 'エラーが発生しました。ファイルを確認してください');
-    console.error(err);
   } finally {
     coordUi.convertBtn.disabled = false;
   }
 });
+
+/* XML から系番号を検出（lat/lon基準点生成用）
+   複数のパターンに対応：
+   1. XML要素から直接読取（系番号 / zoneNumber）
+   2. EPSG コードから推定
+   3. 座標範囲から推定（fallback） */
+function detectZoneFromXml(doc, coordRange = null) {
+  logger.debug('系番号検出: パターン1 - XML要素から検出');
+
+  // パターン1: XML要素から直接読取
+  for (const el of doc.querySelectorAll('*')) {
+    const localName = el.localName || '';
+    const text = el.textContent.trim();
+
+    // 日本語・英語両対応
+    if (localName === '系番号' || localName === 'zoneNumber' ||
+        localName === 'jgd2000zone' || localName === 'JGD2000Zone') {
+      const n = parseInt(text, 10);
+      if (n >= 1 && n <= 19) {
+        logger.info('系番号検出成功（パターン1：XML要素）', { zone: n, element: localName });
+        return n;
+      }
+    }
+
+    // 属性から検出
+    for (let i = 0; i < el.attributes.length; i++) {
+      const attr = el.attributes[i];
+      if (attr.name.toLowerCase().includes('zone') || attr.name.toLowerCase().includes('jgd')) {
+        const n = parseInt(attr.value, 10);
+        if (n >= 1 && n <= 19) {
+          logger.info('系番号検出成功（パターン1：属性）', { zone: n, attribute: attr.name });
+          return n;
+        }
+      }
+    }
+  }
+
+  logger.debug('系番号検出: パターン2 - EPSGコードから推定');
+
+  // パターン2: EPSG コードから推定
+  const epsgToZone = {
+    2443:1,2444:2,2445:3,2446:4,2447:5,2448:6,2449:7,2450:8,
+    2451:9,2452:10,2453:11,2454:12,2455:13,2456:14,2457:15,
+    2458:16,2459:17,2460:18,2461:19,
+    6669:1,6670:2,6671:3,6672:4,6673:5,6674:6,6675:7,6676:8,
+    6677:9,6678:10,6679:11,6680:12,6681:13,6682:14,6683:15,
+    6684:16,6685:17,6686:18,6687:19
+  };
+
+  const xmlText = doc.documentElement.textContent;
+
+  // EPSG:XXXX または EPSG XXXX の形式で検索
+  const epsgMatches = xmlText.match(/EPSG[:\s]+(\d{4,5})/gi);
+  if (epsgMatches) {
+    for (const match of epsgMatches) {
+      const epsgCode = parseInt(match.replace(/[^\d]/g, ''), 10);
+      const zone = epsgToZone[epsgCode];
+      if (zone) {
+        logger.info('系番号検出成功（パターン2：EPSGコード）', { zone: zone, epsgCode: epsgCode });
+        return zone;
+      }
+    }
+  }
+
+  logger.debug('系番号検出: パターン3 - 座標範囲から推定');
+
+  // パターン3: 座標範囲から自動推定（座標が渡された場合）
+  if (coordRange && coordRange.points && coordRange.points.length > 0) {
+    const allX = [];
+    const allY = [];
+    for (const coords of coordRange.points) {
+      const [x, y] = coords;
+      allX.push(x);
+      allY.push(y);
+    }
+
+    if (allX.length > 0 && allY.length > 0) {
+      const centerX = (Math.max(...allX) + Math.min(...allX)) / 2;
+      const centerY = (Math.max(...allY) + Math.min(...allY)) / 2;
+
+      logger.debug('公共座標中心点', { pubX_m: centerX.toFixed(2), pubY_m: centerY.toFixed(2) });
+
+      // 最初に推定した系で lon/lat に変換してから、最適な系を判定
+      // ZONE_ORIGINS から最も近い系を選択
+      let bestZone = 1, bestDist = Infinity;
+      for (let z = 1; z <= 19; z++) {
+        const origin = ZONE_ORIGINS[z];
+        if (!origin) continue;
+
+        // 公共座標を中心に、この系がどのくらい近いかを計算
+        // 簡単な距離計算（精密ではないがフォールバック用）
+        const dist = Math.hypot(centerX - origin[0] * 111000, centerY - origin[1] * 111000);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestZone = z;
+        }
+      }
+
+      if (bestZone && bestZone >= 1 && bestZone <= 19) {
+        logger.info('系番号検出成功（パターン3：座標推定）', {
+          zone: bestZone,
+          distance_km: (bestDist / 1000).toFixed(1)
+        });
+        return bestZone;
+      }
+    }
+  }
+
+  logger.warn('系番号検出失敗 - 全パターン試行完了');
+  return null;  // 検出失敗 → ユーザーの手動選択に委ねる
+}
 
 function parsePoints(doc) {
   const map = new Map();
@@ -1985,6 +3540,8 @@ function parseFrames(doc) {
   });
 }
 
+/* ==================== Latlon Grid Label Generator ==================== */
+/* 図面範囲内に約20ポイント（4×5グリッド）の緯度経度ラベル・ポイント・引出線を生成 */
 function generateCoordinateDxf(data) {
   const { points, curves, surfaces, boundaryLines, boundaryPoints, refPoints, parcels, frames } = data;
   const dxy = pt => [pt[1] * 1000, pt[0] * 1000];
@@ -2020,14 +3577,17 @@ function generateCoordinateDxf(data) {
   let scale = 500;
   if (frames.length && frames[0].scale) scale = parseInt(frames[0].scale, 10) || 500;
   const textHeight = scale * 3;
+
+  const layers = [
+    ['BOUNDARY', 1],
+    ['LANDNUMBER', 3],
+    ['BND_POINT', 5],
+    ['REF_POINT', 2],
+    ['FRAME', 7]
+  ];
+
   return buildDxf({
-    layers: [
-      ['BOUNDARY', 1],
-      ['LANDNUMBER', 3],
-      ['BND_POINT', 5],
-      ['REF_POINT', 2],
-      ['FRAME', 7]
-    ],
+    layers,
     extents: { width: lx1, height: ly1 },
     entities: writer => {
       for (const bl of boundaryLines) {
@@ -2066,6 +3626,7 @@ function generateCoordinateDxf(data) {
       }
 
       const names = [MAP_TAGS.northEast, MAP_TAGS.southEast, MAP_TAGS.southWest, MAP_TAGS.northWest];
+      const cornerDirs = [1, -1, -1, 1]; /* NE↑ SE↓ SW↓ NW↑ */
       for (const frame of frames) {
         const corners = names.filter(name => frame[name]).map(name => dxyT(frame[name]));
         if (corners.length !== 4) continue;
@@ -2720,7 +4281,7 @@ elevConvertBtn.addEventListener('click', async () => {
     const elevTextLayer  = (document.getElementById('elevTextLayerName').value.trim())  || 'ELEV_TEXT';
     const frameLayer     = (document.getElementById('frameLayerName').value.trim())     || 'FRAME';
     const frameTextLayer = (document.getElementById('frameTextLayerName').value.trim()) || 'FRAME_LATLON';
-    const dxf = generateElevationDxf({
+    let dxf = generateElevationDxf({
       raster,
       contourSegments,
       layerDefs,
@@ -2732,6 +4293,41 @@ elevConvertBtn.addEventListener('click', async () => {
       includePointLabels: includePointLabelsEl.checked,
       includeContourLabels: includeContourLabelsEl.checked
     });
+
+    // 【新規追加処理】lat/lon基準点を生成・追加（機能⑧用）
+    if (raster.zone) {
+      setElevationProgress(98, 'lat/lon基準点を生成中...');
+      await uiYield();
+
+      const { toMm } = raster;
+      const corners = [
+        toMm(raster.bbox.west, raster.bbox.north),
+        toMm(raster.bbox.east, raster.bbox.north),
+        toMm(raster.bbox.east, raster.bbox.south),
+        toMm(raster.bbox.west, raster.bbox.south)
+      ];
+
+      const minX = Math.min(...corners.map(c => c[0]));
+      const maxX = Math.max(...corners.map(c => c[0]));
+      const minY = Math.min(...corners.map(c => c[1]));
+      const maxY = Math.max(...corners.map(c => c[1]));
+
+      const latlonData = generateLatLonControlPoints({
+        x0: minX,
+        x1: maxX,
+        y0: minY,
+        y1: maxY,
+        ox: 0,
+        oy: 0,
+        zone: raster.zone,
+        source: 'F03',
+        pointCount: 20,
+        gridCols: 4,
+        gridRows: 5
+      });
+
+      dxf = appendLatLonEntitiesToDxf(dxf, latlonData);
+    }
 
     const filenameSuffix =
       `_CL${compactFilenameNumber(contourIntervalEl.value)}` +
@@ -4109,6 +5705,8 @@ function buildDxf({ layers, extents, entities }) {
 
   push('  0','SECTION','  2','HEADER',
     '  9','$ACADVER','  1','AC1009',
+    '  9','$PDMODE',' 70','34',
+    '  9','$PDSIZE',' 40','0',
     '  9','$EXTMIN',' 10',f(minX),' 20',f(minY),' 30','0.000',
     '  9','$EXTMAX',' 10',f(maxX),' 20',f(maxY),' 30','0.000',
     '  9','$LIMMIN',' 10',f(minX),' 20',f(minY),
@@ -4148,6 +5746,7 @@ function buildDxf({ layers, extents, entities }) {
 <script src="https://unpkg.com/three@0.124.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.124.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
 <script>
 /* -------------------- DEM file range picker -------------------- */
 var _demFileMap = null, _demFileExtentRect = null, _demFileSelectionRect = null, _demFileViewCornerDivs = null, _demFileMeshRects = [];
@@ -4596,6 +6195,476 @@ document.getElementById('demAutoDownloadBtn').addEventListener('click', async fu
   }
 });
 
+/* -------------------- ⑦ 太陽方位 -------------------- */
+(function () {
+  var sunMap = null;
+  var sunMarker = null;
+  var sunOriginCircle = null;
+  var sunLineLayer = null;
+  var sunLineRenderer = null;
+  var sunBaseLayer = null;
+  var sunAerialLayer = null;
+  var SUN_DEBUG = false;
+  var sunRequestSeq = 0;
+  var sunState = {
+    initialCenter: { lat: 35.6812, lon: 139.7671, zoom: 14 },
+    selectedLatLng: null,
+    lat: null,
+    lon: null,
+    address: '',
+    elevationInfo: { elevation: NaN, source: '' },
+    seriesList: [],
+    showSummer: true,
+    showWinter: true
+  };
+  var sunAddressEl = document.getElementById('sunAddressValue');
+  var sunLatLonEl = document.getElementById('sunLatLonValue');
+  var sunElevationEl = document.getElementById('sunElevationValue');
+  var sunCardsEl = document.getElementById('sunCards');
+  var sunShowAerialEl = document.getElementById('sunShowAerial');
+  var sunShowSummerEl = document.getElementById('sunShowSummer');
+  var sunShowWinterEl = document.getElementById('sunShowWinter');
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      sunState.initialCenter = {
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        zoom: 15
+      };
+      if (sunMap) sunMap.setView([sunState.initialCenter.lat, sunState.initialCenter.lon], sunState.initialCenter.zoom);
+    }, function () {
+      /* 現在地取得不可でも既定位置のまま継続 */
+    }, {
+      enableHighAccuracy: false,
+      timeout: 6000,
+      maximumAge: 300000
+    });
+  }
+
+  function initSunMap() {
+    if (sunMap) {
+      setTimeout(function () { sunMap.invalidateSize(); }, 50);
+      return;
+    }
+    var el = document.getElementById('sunMapEl');
+    if (!el || !window.L) return;
+    sunMap = L.map(el, {
+      zoomControl: true,
+      zoomAnimation: false,
+      markerZoomAnimation: false
+    }).setView([sunState.initialCenter.lat, sunState.initialCenter.lon], sunState.initialCenter.zoom);
+    sunBaseLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+      maxZoom: 18
+    }).addTo(sunMap);
+    sunAerialLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
+      attribution: '© 国土地理院',
+      maxZoom: 18
+    });
+    sunLineRenderer = L.canvas({ padding: 0.5 });
+    sunLineLayer = L.layerGroup().addTo(sunMap);
+    sunMap.on('click', function (e) { handleSunPointSelection(e.latlng.lat, e.latlng.lng); });
+    sunMap.on('moveend zoomend resize', rerenderSunOverlays);
+    if (sunShowAerialEl) {
+      sunShowAerialEl.addEventListener('change', updateSunBaseLayer);
+    }
+    if (sunShowSummerEl) {
+      sunShowSummerEl.addEventListener('change', function () {
+        sunState.showSummer = this.checked;
+        rerenderSunOverlays();
+      });
+      sunState.showSummer = sunShowSummerEl.checked;
+    }
+    if (sunShowWinterEl) {
+      sunShowWinterEl.addEventListener('change', function () {
+        sunState.showWinter = this.checked;
+        rerenderSunOverlays();
+      });
+      sunState.showWinter = sunShowWinterEl.checked;
+    }
+    setTimeout(function () { sunMap.invalidateSize(); }, 100);
+  }
+
+  function updateSunBaseLayer() {
+    if (!sunMap || !sunBaseLayer || !sunAerialLayer || !sunShowAerialEl) return;
+    if (sunShowAerialEl.checked) {
+      if (sunMap.hasLayer(sunBaseLayer)) sunMap.removeLayer(sunBaseLayer);
+      if (!sunMap.hasLayer(sunAerialLayer)) sunAerialLayer.addTo(sunMap);
+      sunAerialLayer.bringToBack();
+    } else {
+      if (sunMap.hasLayer(sunAerialLayer)) sunMap.removeLayer(sunAerialLayer);
+      if (!sunMap.hasLayer(sunBaseLayer)) sunBaseLayer.addTo(sunMap);
+      sunBaseLayer.bringToBack();
+    }
+    if (sunLineLayer) sunLineLayer.bringToFront();
+    if (sunMarker) sunMarker.bringToFront();
+    if (sunOriginCircle) sunOriginCircle.bringToFront();
+  }
+
+  function updateSunPointSummary(lat, lon, address, elevationText) {
+    if (sunAddressEl) sunAddressEl.textContent = address || '住所取得不可';
+    if (sunLatLonEl) sunLatLonEl.textContent = 'lat: ' + lat.toFixed(6) + ' / lon: ' + lon.toFixed(6);
+    if (sunElevationEl) sunElevationEl.textContent = elevationText || '高度取得不可';
+  }
+
+  function clearSunGraphics() {
+    if (sunLineLayer) sunLineLayer.clearLayers();
+    if (sunOriginCircle && sunMap) {
+      sunMap.removeLayer(sunOriginCircle);
+      sunOriginCircle = null;
+    }
+  }
+
+  function destinationPoint(lat, lon, bearingDeg, distanceMeters) {
+    var R = 6378137;
+    var brng = bearingDeg * Math.PI / 180;
+    var lat1 = lat * Math.PI / 180;
+    var lon1 = lon * Math.PI / 180;
+    var angDist = distanceMeters / R;
+    var lat2 = Math.asin(Math.sin(lat1) * Math.cos(angDist) + Math.cos(lat1) * Math.sin(angDist) * Math.cos(brng));
+    var lon2 = lon1 + Math.atan2(
+      Math.sin(brng) * Math.sin(angDist) * Math.cos(lat1),
+      Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return [lat2 * 180 / Math.PI, lon2 * 180 / Math.PI];
+  }
+
+  function solarAzimuthToBearingDeg(azimuthRad) {
+    return (azimuthRad * 180 / Math.PI + 180 + 360) % 360;
+  }
+
+  function chooseSolsticeDate(year, monthIndex, mode, lat, lon) {
+    var bestDate = null;
+    var bestValue = mode === 'max' ? -Infinity : Infinity;
+    var startDay = monthIndex === 5 ? 19 : 20;
+    var endDay = monthIndex === 5 ? 23 : 24;
+    for (var day = startDay; day <= endDay; day++) {
+      var candidate = new Date(year, monthIndex, day, 12, 0, 0, 0);
+      var altitude = SunCalc.getPosition(candidate, lat, lon).altitude;
+      if ((mode === 'max' && altitude > bestValue) || (mode === 'min' && altitude < bestValue)) {
+        bestValue = altitude;
+        bestDate = new Date(year, monthIndex, day, 0, 0, 0, 0);
+      }
+    }
+    return bestDate;
+  }
+
+  function buildSolarSeries(lat, lon) {
+    var now = new Date();
+    var year = now.getFullYear();
+    return [
+      { key: 'today', label: '現在日', color: '#f6ad55', date: new Date(year, now.getMonth(), now.getDate(), 0, 0, 0, 0) },
+      { key: 'summer', label: '夏至', color: '#63b3ed', date: chooseSolsticeDate(year, 5, 'max', lat, lon) || new Date(year, 5, 21, 0, 0, 0, 0) },
+      { key: 'winter', label: '冬至', color: '#f472b6', date: chooseSolsticeDate(year, 11, 'min', lat, lon) || new Date(year, 11, 22, 0, 0, 0, 0) }
+    ];
+  }
+
+  function formatDateJa(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+
+  function formatTimeJa(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '---';
+    return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  }
+
+  function formatElevation(value, source) {
+    if (!Number.isFinite(value)) return '高度取得不可';
+    return fmtNum(value, source === '10m' ? 0 : 1) + ' m' + (source ? '（' + source + '）' : '');
+  }
+
+  function makeUnavailableSeries(series, reason) {
+    series.times = {
+      sunrise: null,
+      sunset: null
+    };
+    series.visibleHourLabel = reason || '取得不可';
+    series.entries = [];
+  }
+
+  function renderSunCards(seriesList) {
+    if (!sunCardsEl) return;
+    sunCardsEl.innerHTML = seriesList.map(function (series) {
+      return '<div class="summary-item">' +
+        '<div class="sun-card-title"><span class="dot" style="background:' + series.color + '"></span>' + escapeHtml(series.label) + '</div>' +
+        '<div class="sun-card-grid">' +
+          '<div><div class="label">対象日付</div><div class="value">' + escapeHtml(formatDateJa(series.date)) + '</div></div>' +
+          '<div><div class="label">日の出</div><div class="value">' + escapeHtml(formatTimeJa(series.times.sunrise)) + '</div></div>' +
+          '<div><div class="label">日の入り</div><div class="value">' + escapeHtml(formatTimeJa(series.times.sunset)) + '</div></div>' +
+          '<div><div class="label">可視時間帯</div><div class="value">' + escapeHtml(series.visibleHourLabel) + '</div></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function fetchJsonWithTimeout(url, timeoutMs) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+    try {
+      var res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function fetchSunAddress(lat, lon) {
+    sunDebugLog('address.fetch.start', { lat: lat, lon: lon });
+    var data = await fetchJsonWithTimeout('https://geoapi.heartrails.com/api/json?method=searchByGeoLocation&x=' + lon.toFixed(6) + '&y=' + lat.toFixed(6), 6000);
+    var loc = (data && data.response && data.response.location && data.response.location[0]) || {};
+    var postal = loc.postal ? '〒' + loc.postal.slice(0, 3) + '-' + loc.postal.slice(3) : '';
+    var addr = [loc.prefecture, loc.city, loc.town].filter(Boolean).join('');
+    var full = (postal ? postal + ' ' : '') + addr;
+    if (!full) throw new Error('address unavailable');
+    sunDebugLog('address.fetch.success', { address: full });
+    return full;
+  }
+
+  async function fetchSunElevation(lat, lon) {
+    var url = 'https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php?lat=' + lat.toFixed(6) + '&lon=' + lon.toFixed(6) + '&outtype=JSON';
+    sunDebugLog('elevation.fetch.start', { lat: lat, lon: lon });
+    var data = await fetchJsonWithTimeout(url, 6000);
+    if (!data || data.elevation === '-----') throw new Error('elevation unavailable');
+    var result = { elevation: parseFloat(data.elevation), source: data.hsrc || '' };
+    if (!Number.isFinite(result.elevation)) throw new Error('elevation parse failed');
+    sunDebugLog('elevation.fetch.success', result);
+    return result;
+  }
+
+  function buildHourlySolarEntries(series, lat, lon) {
+    var sunriseMs = series.times.sunrise instanceof Date ? series.times.sunrise.getTime() : NaN;
+    var sunsetMs = series.times.sunset instanceof Date ? series.times.sunset.getTime() : NaN;
+    var entries = [];
+    var visibleHours = [];
+    for (var hour = 0; hour < 24; hour++) {
+      var time = new Date(series.date.getFullYear(), series.date.getMonth(), series.date.getDate(), hour, 0, 0, 0);
+      var pos = SunCalc.getPosition(time, lat, lon);
+      var altitudeDeg = pos.altitude * 180 / Math.PI;
+      var bearingDeg = solarAzimuthToBearingDeg(pos.azimuth);
+      var timeMs = time.getTime();
+      var isDaylightByTime = Number.isFinite(sunriseMs) && Number.isFinite(sunsetMs) ? (timeMs >= sunriseMs && timeMs <= sunsetMs) : true;
+      var isVisible = altitudeDeg >= 0 && isDaylightByTime;
+      if (!isVisible) continue;
+      visibleHours.push(String(hour).padStart(2, '0') + ':00');
+      entries.push({
+        hour: hour,
+        time: time,
+        altitudeDeg: altitudeDeg,
+        bearingDeg: bearingDeg
+      });
+    }
+    series.entries = entries;
+    series.visibleHourLabel = visibleHours.length ? visibleHours[0] + ' - ' + visibleHours[visibleHours.length - 1] : '日中なし';
+  }
+
+  function createSunLabel(latlng, hour, color) {
+    return L.marker(latlng, {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'sun-label-icon',
+        html: '<span>' + hour + '</span>',
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+      })
+    });
+  }
+
+  function sunDebugLog(label, payload) {
+    if (!SUN_DEBUG || typeof console === 'undefined') return;
+    console.log('[sunPanel]', label, payload);
+  }
+
+  function isSeriesVisible(series) {
+    if (series.key === 'today') return true;
+    if (series.key === 'summer') return sunState.showSummer;
+    if (series.key === 'winter') return sunState.showWinter;
+    return true;
+  }
+
+  function endpointForBearing(lat, lon, bearingDeg) {
+    if (!sunMap) return { dest: [lat, lon], label: [lat, lon] };
+    var size = sunMap.getSize();
+    var pad = 20;
+    var labelPad = 34;
+    var originLatLng = L.latLng(lat, lon);
+    var origin = sunMap.latLngToLayerPoint(originLatLng);
+    var topLeft = sunMap.containerPointToLayerPoint([0, 0]);
+    var bottomRight = sunMap.containerPointToLayerPoint([size.x, size.y]);
+    var theta = bearingDeg * Math.PI / 180;
+    var vx = Math.sin(theta);
+    var vy = -Math.cos(theta);
+    var lineCandidates = [];
+    var labelCandidates = [];
+    if (Math.abs(vx) > 1e-6) {
+      lineCandidates.push(((vx > 0 ? bottomRight.x - pad : topLeft.x + pad) - origin.x) / vx);
+      labelCandidates.push(((vx > 0 ? bottomRight.x - labelPad : topLeft.x + labelPad) - origin.x) / vx);
+    }
+    if (Math.abs(vy) > 1e-6) {
+      lineCandidates.push(((vy > 0 ? bottomRight.y - pad : topLeft.y + pad) - origin.y) / vy);
+      labelCandidates.push(((vy > 0 ? bottomRight.y - labelPad : topLeft.y + labelPad) - origin.y) / vy);
+    }
+    var positiveLine = lineCandidates.filter(function (t) { return Number.isFinite(t) && t > 0; });
+    var positiveLabel = labelCandidates.filter(function (t) { return Number.isFinite(t) && t > 0; });
+    var lineT = positiveLine.length ? Math.min.apply(null, positiveLine) : 80;
+    var labelT = positiveLabel.length ? Math.min.apply(null, positiveLabel) : Math.max(lineT - 18, 12);
+
+    var destPoint = L.point(origin.x + vx * lineT, origin.y + vy * lineT);
+    var labelPoint = L.point(
+      clamp(origin.x + vx * labelT, topLeft.x + labelPad, bottomRight.x - labelPad),
+      clamp(origin.y + vy * labelT, topLeft.y + labelPad, bottomRight.y - labelPad)
+    );
+    sunDebugLog('endpointForBearing.projected', {
+      lat: originLatLng.lat,
+      lon: originLatLng.lng,
+      layerX: origin.x,
+      layerY: origin.y,
+      bearingDeg: bearingDeg,
+      zoom: sunMap.getZoom(),
+      bounds: sunMap.getBounds().toBBoxString()
+    });
+
+    return {
+      dest: sunMap.layerPointToLatLng(destPoint),
+      label: sunMap.layerPointToLatLng(labelPoint)
+    };
+  }
+
+  function renderSunLines(selectedLatLng, seriesList) {
+    if (!sunMap || !sunLineLayer) return;
+    if (!selectedLatLng) return;
+    clearSunGraphics();
+    sunDebugLog('renderSunLines.origin', {
+      lat: selectedLatLng.lat,
+      lon: selectedLatLng.lng,
+      zoom: sunMap.getZoom(),
+      bounds: sunMap.getBounds().toBBoxString()
+    });
+
+    seriesList.forEach(function (series) {
+      if (!isSeriesVisible(series)) return;
+      (series.entries || []).forEach(function (entry) {
+        var positions = endpointForBearing(selectedLatLng.lat, selectedLatLng.lng, entry.bearingDeg);
+        L.polyline([selectedLatLng, positions.dest], {
+          color: series.color,
+          weight: 3,
+          opacity: 0.95,
+          renderer: sunLineRenderer,
+          smoothFactor: 1
+        }).bindTooltip(
+          escapeHtml(series.label) + ' / ' + String(entry.hour).padStart(2, '0') + ':00' +
+          '<br>方位 ' + fmtNum(entry.bearingDeg, 1) + '° / 高度 ' + fmtNum(entry.altitudeDeg, 1) + '°',
+          { sticky: true }
+        ).addTo(sunLineLayer);
+        createSunLabel(positions.label, entry.hour, series.color).addTo(sunLineLayer);
+      });
+    });
+    updateSunBaseLayer();
+  }
+
+  function rerenderSunOverlays() {
+    if (!sunState.selectedLatLng || !sunState.seriesList.length) return;
+    sunDebugLog('rerenderSunOverlays.selectedLatLng', {
+      lat: sunState.selectedLatLng.lat,
+      lon: sunState.selectedLatLng.lng,
+      zoom: sunMap ? sunMap.getZoom() : null,
+      bounds: sunMap ? sunMap.getBounds().toBBoxString() : null
+    });
+    renderSunLines(sunState.selectedLatLng, sunState.seriesList);
+  }
+
+  async function handleSunPointSelection(lat, lon) {
+    if (!window.SunCalc) {
+      setStatus('sunStatusBar', 'sb-err', '太陽計算ライブラリの読み込みに失敗しました。ページを再読み込みしてください');
+      return;
+    }
+    var requestId = ++sunRequestSeq;
+    initSunMap();
+    var selectedLatLng = L.latLng(lat, lon);
+    sunState.selectedLatLng = selectedLatLng;
+    sunDebugLog('click.selectedLatLng', {
+      lat: selectedLatLng.lat,
+      lon: selectedLatLng.lng
+    });
+    if (sunMarker) {
+      sunMarker.setLatLng(selectedLatLng);
+    } else {
+      sunMarker = L.circleMarker(selectedLatLng, {
+        radius: 8,
+        color: '#f8fafc',
+        weight: 3,
+        fillColor: '#3182ce',
+        fillOpacity: 0.98
+      }).addTo(sunMap);
+    }
+    updateSunPointSummary(lat, lon, '住所を取得中...', '高度を取得中...');
+    if (sunCardsEl) sunCardsEl.innerHTML = '<div class="summary-item"><span class="hint">太陽方向と地点情報を計算中...</span></div>';
+    setStatus('sunStatusBar', 'sb-work', '地点情報と太陽方向を計算中...');
+    var seriesList = buildSolarSeries(lat, lon);
+    try {
+      seriesList.forEach(function (series) {
+        try {
+          sunDebugLog('series.compute.start', { key: series.key, date: formatDateJa(series.date) });
+          // 国立天文台発表値との誤差確認が必要。実装は SunCalc による暦計算近似を使用。
+          series.times = SunCalc.getTimes(series.date, lat, lon, 0);
+          buildHourlySolarEntries(series, lat, lon);
+          sunDebugLog('series.compute.success', {
+            key: series.key,
+            sunrise: formatTimeJa(series.times.sunrise),
+            sunset: formatTimeJa(series.times.sunset)
+          });
+        } catch (err) {
+          sunDebugLog('series.compute.fail', { key: series.key, error: String(err && err.message || err) });
+          makeUnavailableSeries(series, '取得不可');
+        }
+      });
+
+      sunState.lat = lat;
+      sunState.lon = lon;
+      sunState.seriesList = seriesList;
+      renderSunLines(selectedLatLng, seriesList);
+      renderSunCards(seriesList);
+
+      var settled = await Promise.allSettled([
+        fetchSunAddress(lat, lon),
+        fetchSunElevation(lat, lon)
+      ]);
+      if (requestId !== sunRequestSeq) return;
+
+      var address = settled[0].status === 'fulfilled' && settled[0].value ? settled[0].value : '住所取得不可';
+      var elevationInfo = settled[1].status === 'fulfilled' ? settled[1].value : { elevation: NaN, source: '' };
+      if (settled[0].status !== 'fulfilled') sunDebugLog('address.fetch.fail', { error: String(settled[0].reason && settled[0].reason.message || settled[0].reason) });
+      if (settled[1].status !== 'fulfilled') sunDebugLog('elevation.fetch.fail', { error: String(settled[1].reason && settled[1].reason.message || settled[1].reason) });
+
+      sunState.address = address;
+      sunState.elevationInfo = elevationInfo;
+      updateSunPointSummary(lat, lon, address, formatElevation(elevationInfo.elevation, elevationInfo.source));
+      setStatus('sunStatusBar', 'sb-ok', '地点を更新しました。現在日の太陽方向を表示しています');
+    } catch (err) {
+      if (requestId !== sunRequestSeq) return;
+      sunDebugLog('handleSunPointSelection.fail', { error: String(err && err.message || err) });
+      updateSunPointSummary(lat, lon, '住所取得不可', '高度取得不可');
+      seriesList.forEach(function (series) {
+        if (!series.times) makeUnavailableSeries(series, '取得不可');
+      });
+      renderSunCards(seriesList);
+      setStatus('sunStatusBar', 'sb-err', '地点情報の取得に失敗しました');
+    } finally {
+      if (requestId !== sunRequestSeq) return;
+      if (sunAddressEl && sunAddressEl.textContent === '住所を取得中...') sunAddressEl.textContent = '住所取得不可';
+      if (sunElevationEl && sunElevationEl.textContent === '高度を取得中...') sunElevationEl.textContent = '高度取得不可';
+      sunDebugLog('handleSunPointSelection.finally', {
+        requestId: requestId,
+        address: sunAddressEl ? sunAddressEl.textContent : '',
+        elevation: sunElevationEl ? sunElevationEl.textContent : ''
+      });
+    }
+  }
+
+  window.initSunMapPanel = initSunMap;
+})();
+
 /* -------------------- 等高線レイヤ設定 -------------------- */
 const CONTOUR_LAYER_COLORS = [1, 6, 3, 4, 5, 2, 8, 9];
 const DEFAULT_CONTOUR_LAYERS = [
@@ -4690,8 +6759,938 @@ document.querySelectorAll('.tab-btn').forEach(function(btn) {
     if (btn.dataset.tab === 'demSearchPanel') setTimeout(_initDemMap, 120);
     if (btn.dataset.tab === 'chibanPanel') setTimeout(_initChibanMap, 120);
     if (btn.dataset.tab === 'dxf3dPanel' && typeof window.initDxf3dViewer === 'function') setTimeout(window.initDxf3dViewer, 120);
+    if (btn.dataset.tab === 'sunPanel' && typeof window.initSunMapPanel === 'function') setTimeout(window.initSunMapPanel, 120);
+    // mergePanel は初期化不要（非同期マップなし）
   });
 });
+
+/* ==================== ⑧ DXF重ね合わせ ==================== */
+const mergeUi = {
+  baseDxfZone: document.getElementById('mergeBaseDxfZone'),
+  baseDxfInput: document.getElementById('mergeBaseDxfInput'),
+  baseDxfBadge: document.getElementById('mergeBaseDxfBadge'),
+  baseDxfName: document.getElementById('mergeBaseDxfName'),
+  baseDxfSize: document.getElementById('mergeBaseDxfSize'),
+  baseDxfRemove: document.getElementById('mergeBaseDxfRemove'),
+  overlayDxfZone: document.getElementById('mergeOverlayDxfZone'),
+  overlayDxfInput: document.getElementById('mergeOverlayDxfInput'),
+  overlayDxfBadge: document.getElementById('mergeOverlayDxfBadge'),
+  overlayDxfName: document.getElementById('mergeOverlayDxfName'),
+  overlayDxfSize: document.getElementById('mergeOverlayDxfSize'),
+  overlayDxfRemove: document.getElementById('mergeOverlayDxfRemove'),
+  mergeBtn: document.getElementById('mergeDxfBtn'),
+  progressSec: document.getElementById('mergeProgressSection'),
+  progressFill: document.getElementById('mergeProgressFill'),
+  progressLabel: document.getElementById('mergeProgressLabel'),
+  warnBox: document.getElementById('mergeWarnBox'),
+  errorBox: document.getElementById('mergeErrorBox'),
+  successBox: document.getElementById('mergeSuccessBox'),
+  statusBar: document.getElementById('mergeStatusBar'),
+  allowScaleCorrection: document.getElementById('mergeAllowScaleCorrection'),
+  latLonTolerance: document.getElementById('mergeLatLonTolerance')
+};
+
+let mergeBaseDxfFile = null;
+let mergeOverlayDxfFile = null;
+
+function hideMergeMessages() {
+  mergeUi.warnBox.style.display = 'none';
+  mergeUi.errorBox.style.display = 'none';
+  mergeUi.successBox.style.display = 'none';
+  mergeUi.progressSec.style.display = 'none';
+}
+
+function showMergeError(msg) {
+  mergeUi.errorBox.textContent = 'エラー: ' + msg;
+  mergeUi.errorBox.style.display = 'block';
+  if (window.ErrorLogger) window.ErrorLogger.error('[DXF重ね合わせ] ' + msg);
+}
+
+function showMergeWarn(msg) {
+  mergeUi.warnBox.textContent = '⚠ ' + msg;
+  mergeUi.warnBox.style.display = 'block';
+}
+
+function setMergeProgress(v, msg) {
+  mergeUi.progressSec.style.display = 'block';
+  mergeUi.progressFill.style.width = v + '%';
+  mergeUi.progressLabel.textContent = msg;
+}
+
+function setMergeFile(isBase, file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'dxf') {
+    showMergeError('DXFファイルを選択してください');
+    return;
+  }
+  if (isBase) {
+    mergeBaseDxfFile = file;
+    mergeUi.baseDxfName.textContent = file.name;
+    mergeUi.baseDxfSize.textContent = fmtSize(file.size);
+    mergeUi.baseDxfBadge.style.display = 'flex';
+  } else {
+    mergeOverlayDxfFile = file;
+    mergeUi.overlayDxfName.textContent = file.name;
+    mergeUi.overlayDxfSize.textContent = fmtSize(file.size);
+    mergeUi.overlayDxfBadge.style.display = 'flex';
+  }
+  mergeUi.mergeBtn.disabled = !(mergeBaseDxfFile && mergeOverlayDxfFile);
+  hideMergeMessages();
+  setStatus('mergeStatusBar', 'sb-ready', '「DXFを重ね合わせ」をクリックしてください');
+}
+
+function clearMergeFile(isBase) {
+  if (isBase) {
+    mergeBaseDxfFile = null;
+    mergeUi.baseDxfInput.value = '';
+    mergeUi.baseDxfBadge.style.display = 'none';
+  } else {
+    mergeOverlayDxfFile = null;
+    mergeUi.overlayDxfInput.value = '';
+    mergeUi.overlayDxfBadge.style.display = 'none';
+  }
+  mergeUi.mergeBtn.disabled = true;
+  hideMergeMessages();
+  setStatus('mergeStatusBar', 'sb-hint', '2つのDXFファイルをドロップしてください');
+}
+
+// UIイベント
+mergeUi.baseDxfZone.addEventListener('click', () => mergeUi.baseDxfInput.click());
+mergeUi.baseDxfZone.addEventListener('dragover', e => { e.preventDefault(); mergeUi.baseDxfZone.classList.add('drag-over'); });
+mergeUi.baseDxfZone.addEventListener('dragleave', () => mergeUi.baseDxfZone.classList.remove('drag-over'));
+mergeUi.baseDxfZone.addEventListener('drop', e => {
+  e.preventDefault();
+  mergeUi.baseDxfZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setMergeFile(true, e.dataTransfer.files[0]);
+});
+mergeUi.baseDxfInput.addEventListener('change', () => {
+  if (mergeUi.baseDxfInput.files[0]) setMergeFile(true, mergeUi.baseDxfInput.files[0]);
+});
+mergeUi.baseDxfRemove.addEventListener('click', e => {
+  e.stopPropagation();
+  clearMergeFile(true);
+});
+
+mergeUi.overlayDxfZone.addEventListener('click', () => mergeUi.overlayDxfInput.click());
+mergeUi.overlayDxfZone.addEventListener('dragover', e => { e.preventDefault(); mergeUi.overlayDxfZone.classList.add('drag-over'); });
+mergeUi.overlayDxfZone.addEventListener('dragleave', () => mergeUi.overlayDxfZone.classList.remove('drag-over'));
+mergeUi.overlayDxfZone.addEventListener('drop', e => {
+  e.preventDefault();
+  mergeUi.overlayDxfZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setMergeFile(false, e.dataTransfer.files[0]);
+});
+mergeUi.overlayDxfInput.addEventListener('change', () => {
+  if (mergeUi.overlayDxfInput.files[0]) setMergeFile(false, mergeUi.overlayDxfInput.files[0]);
+});
+mergeUi.overlayDxfRemove.addEventListener('click', e => {
+  e.stopPropagation();
+  clearMergeFile(false);
+});
+
+// 【新規】DXFを重ね合わせボタンのイベントリスナー
+mergeUi.mergeBtn.addEventListener('click', async () => {
+  if (!mergeBaseDxfFile || !mergeOverlayDxfFile) return;
+
+  mergeUi.mergeBtn.disabled = true;
+  hideMergeMessages();
+  setMergeProgress(0, 'DXFファイルを読み込み中...');
+  setStatus('mergeStatusBar', 'sb-work', '重ね合わせ処理中...');
+
+  try {
+    setMergeProgress(20, '基本DXFを読み込み中...');
+    await uiYield();
+    const baseDxfText = await mergeBaseDxfFile.text();
+
+    setMergeProgress(40, '重ね合わせDXFを読み込み中...');
+    await uiYield();
+    const overlayDxfText = await mergeOverlayDxfFile.text();
+
+    setMergeProgress(60, '基準点を検出・マッチング中...');
+    await uiYield();
+    const tolerance = parseFloat(mergeUi.latLonTolerance.value) || 100;
+
+    const mergedDxf = mergeDxfByLatLon(baseDxfText, overlayDxfText, tolerance);
+
+    setMergeProgress(90, '重ね合わせDXFを生成中...');
+    await uiYield();
+
+    const baseFileName = mergeBaseDxfFile.name.replace(/\.[^.]+$/, '');
+    const overlayFileName = mergeOverlayDxfFile.name.replace(/\.[^.]+$/, '');
+    const filename = timestampedFilename(baseFileName + '_merged_with_' + overlayFileName + '.dxf');
+
+    downloadTextFile(filename, mergedDxf);
+
+    mergeUi.successBox.innerHTML =
+      `重ね合わせ完了: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([mergedDxf]).size)}）<br>` +
+      `基本DXF: ${escapeHtml(mergeBaseDxfFile.name)}<br>` +
+      `重ね合わせDXF: ${escapeHtml(mergeOverlayDxfFile.name)}<br>` +
+      `レイヤープリフィックス: F01_（基本）、F03_（重ね合わせ）`;
+    mergeUi.successBox.style.display = 'block';
+
+    setMergeProgress(100, '完了！');
+    setStatus('mergeStatusBar', 'sb-ok', '重ね合わせ完了。DXFファイルをJW-CADで開いてください');
+  } catch (err) {
+    showMergeError(err.message);
+    setStatus('mergeStatusBar', 'sb-err', 'エラーが発生しました。DXFファイルを確認してください');
+    console.error(err);
+  } finally {
+    mergeUi.mergeBtn.disabled = false;
+  }
+});
+
+/* ================== DXFパーサー・重ね合わせロジック ================== */
+
+/** DXFテキストをパースしてエンティティを抽出 */
+function parseDxfText(dxfText) {
+  const entities = [];
+  const lines = dxfText.split('\n');
+  let i = 0;
+
+  // ENTITIES セクションまで進める
+  while (i < lines.length && !lines[i].includes('ENTITIES')) i++;
+  i++;
+
+  // エンティティを逐次読み込み
+  while (i < lines.length) {
+    const groupCode = lines[i++]?.trim();
+    const value = lines[i++]?.trim();
+
+    if (groupCode === '0' && value === 'ENDSEC') break;
+    if (groupCode !== '0') continue;
+
+    // エンティティ種別
+    const entityType = value;
+    const entity = { type: entityType, layer: null, data: {} };
+
+    // エンティティのプロパティを読み込み
+    while (i < lines.length) {
+      const code = lines[i++]?.trim();
+      const val = lines[i++]?.trim();
+
+      if (code === '0') {
+        i -= 2; // 次のエンティティ開始に戻す
+        break;
+      }
+
+      // レイヤー
+      if (code === '8') entity.layer = val;
+      // POINT / TEXT / LINE の共通座標
+      if (code === '10') entity.data.x = parseFloat(val);
+      if (code === '20') entity.data.y = parseFloat(val);
+      // TEXT の場合の文字列
+      if (code === '1') entity.data.text = val;
+      // LINE の終了座標
+      if (code === '11') entity.data.x2 = parseFloat(val);
+      if (code === '21') entity.data.y2 = parseFloat(val);
+    }
+
+    if (entity.layer) entities.push(entity);
+  }
+
+  return entities;
+}
+
+/** DXF から lat/lon基準点を抽出（機能⑧用）
+ * F01_LATLON_POINT/LABEL または F03_LATLON_POINT/LABEL から基準点を抽出
+ * @returns {Array} [{id, source, lon, lat, cadX, cadY, pointLayer, labelLayer}, ...]
+ */
+function extractLatLonControlPoints(dxfText, source = null) {
+  const entities = parseDxfText(dxfText);
+  const points = [];
+
+  // 複数のレイヤー候補から検索
+  const labelLayerOptions = [
+    'F01_LATLON_LABEL',
+    'F03_LATLON_LABEL',
+    'LATLON_LABEL'
+  ];
+  const pointLayerOptions = [
+    'F01_LATLON_POINT',
+    'F03_LATLON_POINT',
+    'LATLON_POINT'
+  ];
+
+  const textEntities = entities.filter(e =>
+    e.type === 'TEXT' && labelLayerOptions.some(layer => e.layer && e.layer.includes(layer))
+  );
+  const pointEntities = entities.filter(e =>
+    e.type === 'POINT' && pointLayerOptions.some(layer => e.layer && e.layer.includes(layer))
+  );
+
+  logger.debug('DXF lat/lon基準点抽出開始', {
+    detectedLayers: Array.from(new Set(textEntities.map(e => e.layer))).sort(),
+    textCount: textEntities.length,
+    pointCount: pointEntities.length
+  });
+
+  for (const textEnt of textEntities) {
+    const text = textEnt.data.text || '';
+
+    // ID (例: F01_CP001) を抽出
+    let idMatch = text.match(/^(F0[13]_CP\d+)/);
+    const id = idMatch ? idMatch[1] : null;
+
+    // lon: xxx.xxxxx, lat: yyy.yyyyy パターンを検出（スペース区切り or 改行区切り）
+    let match = text.match(/lon:\s*([-\d.]+)[,\s]+lat:\s*([-\d.]+)/i);
+    if (!match) continue;
+
+    const lon = parseFloat(match[1]);
+    const lat = parseFloat(match[2]);
+
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+    // ソースを抽出（ F01 または F03 ）
+    let detectedSource = source;
+    if (!detectedSource && id) {
+      const srcMatch = id.match(/(F0[13])/);
+      if (srcMatch) detectedSource = srcMatch[1];
+    }
+    if (!detectedSource && textEnt.layer) {
+      const srcMatch = textEnt.layer.match(/(F0[13])/);
+      if (srcMatch) detectedSource = srcMatch[1];
+    }
+
+    // 対応するPOINTエンティティを見つける（同じレイヤーの最も近いもの）
+    let closest = null;
+    let minDist = Infinity;
+
+    for (const pointEnt of pointEntities) {
+      // 同じソースのレイヤーか確認
+      if (pointEnt.layer && textEnt.layer) {
+        const textSrc = textEnt.layer.match(/(F0[13])/);
+        const pointSrc = pointEnt.layer.match(/(F0[13])/);
+        if (textSrc && pointSrc && textSrc[1] !== pointSrc[1]) continue;
+      }
+
+      const px = pointEnt.data.x || 0;
+      const py = pointEnt.data.y || 0;
+      const tx = textEnt.data.x || 0;
+      const ty = textEnt.data.y || 0;
+      const dist = Math.sqrt((px - tx) ** 2 + (py - ty) ** 2);
+
+      if (dist < minDist) {
+        minDist = dist;
+        closest = pointEnt;
+      }
+    }
+
+    if (closest) {
+      points.push({
+        id: id || detectedSource + '_CP' + String(points.length + 1).padStart(3, '0'),
+        source: detectedSource || 'UNKNOWN',
+        lon: lon,
+        lat: lat,
+        cadX: closest.data.x,
+        cadY: closest.data.y,
+        pointLayer: textEnt.layer?.replace('LABEL', 'POINT') || 'LATLON_POINT',
+        labelLayer: textEnt.layer || 'LATLON_LABEL',
+        distance: minDist
+      });
+    }
+  }
+
+  logger.debug('DXF基準点抽出完了: ' + points.length + '個');
+  if (logger.debugMode) {
+    points.forEach(pt => {
+      logger.debug(pt.id + ' → lon=' + pt.lon.toFixed(6) + ', lat=' + pt.lat.toFixed(6), { cadX: pt.cadX.toFixed(2), cadY: pt.cadY.toFixed(2) });
+    });
+  }
+
+  return points;
+}
+
+/** lon/lat ベースで2つの基準点セットをマッチング */
+function matchLatLonControlPoints(f01Points, f03Points, tolerance = 100) {
+  const matches = [];
+
+  // 概算緯度経度→メートル変換（1度≒111km）
+  const metersPerDegree = 111000;
+
+  for (const p03 of f03Points) {
+    let closest = null;
+    let minDist = Infinity;
+
+    for (const p01 of f01Points) {
+      // lon/lat 距離を計算（単純化：度数差→メートル）
+      const dlat = (p03.lat - p01.lat) * metersPerDegree;
+      const dlon = (p03.lon - p01.lon) * metersPerDegree * Math.cos(p03.lat * Math.PI / 180);
+      const dist = Math.sqrt(dlat * dlat + dlon * dlon);
+
+      if (dist < minDist && dist <= tolerance) {
+        minDist = dist;
+        closest = p01;
+      }
+    }
+
+    if (closest) {
+      matches.push({
+        f01: closest,
+        f03: p03,
+        distance: minDist
+      });
+    }
+  }
+
+  console.log('[マッチング] 対応点数: ' + matches.length);
+  matches.forEach(m => {
+    console.log('  ' + (m.f01.id || 'F01_?') + ' ↔ ' + (m.f03.id || 'F03_?') +
+                ' : 誤差 ' + m.distance.toFixed(2) + 'm');
+  });
+
+  return matches;
+}
+
+/** 対応点から2D affine 変換パラメータを計算 */
+function calculateAffineTransform(matchedPoints) {
+  if (matchedPoints.length === 0) {
+    return { tx: 0, ty: 0, angle: 0, scale: 1, error: { mean: 0, max: 0, rmse: 0 } };
+  }
+
+  // CAD座標の対応関係
+  const pairs = matchedPoints.map(m => ({
+    src: [m.f03.cadX, m.f03.cadY],
+    dst: [m.f01.cadX, m.f01.cadY]
+  }));
+
+  if (pairs.length === 1) {
+    // 1点：平行移動のみ
+    const tx = pairs[0].dst[0] - pairs[0].src[0];
+    const ty = pairs[0].dst[1] - pairs[0].src[1];
+    console.log('[変換計算] 1点マッチング → 平行移動のみ');
+    console.log('  Δx: ' + tx.toFixed(2) + 'mm, Δy: ' + ty.toFixed(2) + 'mm');
+    return { tx, ty, angle: 0, scale: 1, error: { mean: 0, max: 0, rmse: 0 } };
+  }
+
+  if (pairs.length === 2) {
+    // 2点：平行移動 + 回転（+ スケール）
+    const src1 = pairs[0].src, dst1 = pairs[0].dst;
+    const src2 = pairs[1].src, dst2 = pairs[1].dst;
+
+    const dvSrc = [src2[0] - src1[0], src2[1] - src1[1]];
+    const dvDst = [dst2[0] - dst1[0], dst2[1] - dst1[1]];
+
+    // 回転角
+    const angleSrc = Math.atan2(dvSrc[1], dvSrc[0]);
+    const angleDst = Math.atan2(dvDst[1], dvDst[0]);
+    const angle = angleDst - angleSrc;
+
+    // スケール
+    const lenSrc = Math.sqrt(dvSrc[0] ** 2 + dvSrc[1] ** 2);
+    const lenDst = Math.sqrt(dvDst[0] ** 2 + dvDst[1] ** 2);
+    const scale = lenSrc > 0.01 ? lenDst / lenSrc : 1;
+
+    // 平行移動（回転・スケール後）
+    const c = Math.cos(angle), s = Math.sin(angle);
+    const sx1 = src1[0] * scale, sy1 = src1[1] * scale;
+    const rotX = sx1 * c - sy1 * s;
+    const rotY = sx1 * s + sy1 * c;
+    const tx = dst1[0] - rotX;
+    const ty = dst1[1] - rotY;
+
+    console.log('[変換計算] 2点マッチング');
+    console.log('  平行移動：Δx=' + tx.toFixed(2) + 'mm, Δy=' + ty.toFixed(2) + 'mm');
+    console.log('  回転角：' + (angle * 180 / Math.PI).toFixed(4) + '°');
+    console.log('  スケール：' + scale.toFixed(6));
+
+    return { tx, ty, angle, scale, error: { mean: 0, max: 0, rmse: 0 } };
+  }
+
+  // 3点以上：最小二乗法
+  // 簡略版：重心を合わせて回転スケールを計算
+  const centroidSrc = [
+    pairs.reduce((s, p) => s + p.src[0], 0) / pairs.length,
+    pairs.reduce((s, p) => s + p.src[1], 0) / pairs.length
+  ];
+  const centroidDst = [
+    pairs.reduce((s, p) => s + p.dst[0], 0) / pairs.length,
+    pairs.reduce((s, p) => s + p.dst[1], 0) / pairs.length
+  ];
+
+  // 平行移動
+  const tx = centroidDst[0] - centroidSrc[0];
+  const ty = centroidDst[1] - centroidSrc[1];
+
+  // 重心中心の相対座標
+  let Sxx = 0, Sxy = 0, Syx = 0, Syy = 0;
+  for (const p of pairs) {
+    const dx = p.src[0] - centroidSrc[0];
+    const dy = p.src[1] - centroidSrc[1];
+    const ddx = p.dst[0] - centroidDst[0];
+    const ddy = p.dst[1] - centroidDst[1];
+
+    Sxx += dx * ddx;
+    Sxy += dx * ddy;
+    Syx += dy * ddx;
+    Syy += dy * ddy;
+  }
+
+  // 回転角の計算（Kabsch algorithm 簡略版）
+  const angle = Math.atan2(Sxy - Syx, Sxx + Syy);
+  const c = Math.cos(angle), s = Math.sin(angle);
+
+  // スケール
+  let srcNorm = 0, dstNorm = 0;
+  for (const p of pairs) {
+    const dx = p.src[0] - centroidSrc[0];
+    const dy = p.src[1] - centroidSrc[1];
+    const ddx = p.dst[0] - centroidDst[0];
+    const ddy = p.dst[1] - centroidDst[1];
+
+    srcNorm += dx * dx + dy * dy;
+    const rotX = dx * c - dy * s;
+    const rotY = dx * s + dy * c;
+    dstNorm += (ddx - rotX) ** 2 + (ddy - rotY) ** 2;
+  }
+  const scale = srcNorm > 0 ? Math.sqrt((Sxx * Sxx + Sxy * Sxy + Syx * Syx + Syy * Syy) / (srcNorm * srcNorm)) : 1;
+
+  // 誤差計算
+  let maxErr = 0, sumErr = 0;
+  for (const p of pairs) {
+    const dx = p.src[0] - centroidSrc[0];
+    const dy = p.src[1] - centroidSrc[1];
+    const rotX = (dx * scale * c - dy * scale * s) + centroidSrc[0] + tx;
+    const rotY = (dx * scale * s + dy * scale * c) + centroidSrc[1] + ty;
+    const ex = Math.abs(p.dst[0] - rotX);
+    const ey = Math.abs(p.dst[1] - rotY);
+    const err = Math.sqrt(ex * ex + ey * ey);
+    maxErr = Math.max(maxErr, err);
+    sumErr += err;
+  }
+
+  const meanErr = sumErr / pairs.length;
+
+  console.log('[変換計算] ' + pairs.length + '点最小二乗法');
+  console.log('  平行移動：Δx=' + tx.toFixed(2) + 'mm, Δy=' + ty.toFixed(2) + 'mm');
+  console.log('  回転角：' + (angle * 180 / Math.PI).toFixed(4) + '°');
+  console.log('  スケール：' + scale.toFixed(6));
+  console.log('  誤差：平均=' + meanErr.toFixed(2) + 'mm, 最大=' + maxErr.toFixed(2) + 'mm');
+
+  return { tx, ty, angle, scale, error: { mean: meanErr, max: maxErr, rmse: Math.sqrt(dstNorm / pairs.length) } };
+}
+
+/** DXFの座標に2D affine 変換を適用 */
+function transformDxfCoordinate(coord, transform) {
+  const [x, y] = coord;
+  const c = Math.cos(transform.angle);
+  const s = Math.sin(transform.angle);
+  const rotX = x * transform.scale * c - y * transform.scale * s;
+  const rotY = x * transform.scale * s + y * transform.scale * c;
+  return [rotX + transform.tx, rotY + transform.ty];
+}
+
+/** DXF文字列から座標を抽出し変換してDXFを再構築
+ * @returns {string} 変換済みDXF
+ */
+function transformDxfText(dxfText, transform, layerPrefix = 'F03_') {
+  if (!transform || (transform.tx === 0 && transform.ty === 0 && transform.angle === 0 && transform.scale === 1)) {
+    // 変換不要の場合はレイヤープリフィックス追加のみ
+    return dxfText.replace(/  8\n([A-Z_0-9]+)\n/g, (match, layer) => {
+      if (!layer.startsWith('F')) {
+        return '  8\n' + layerPrefix + layer + '\n';
+      }
+      return match;
+    });
+  }
+
+  const lines = dxfText.split('\n');
+  const result = [];
+  let inEntities = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const code = line.trim();
+
+    if (code === 'ENTITIES') inEntities = true;
+    if (code === 'ENDSEC' && inEntities) inEntities = false;
+
+    // エンティティの座標を変換
+    if (inEntities && (code === '10' || code === '20')) {
+      const nextLine = lines[i + 1];
+      const coord = parseFloat(nextLine);
+
+      if (code === '10') {
+        // X座標
+        if (lines[i - 2]?.trim() === '0') {
+          // エンティティ開始直後の座標（POINT/TEXT/LINE開始点）
+          const y = parseFloat(lines[i + 3]);
+          const [tx, ty] = transformDxfCoordinate([coord, y], transform);
+          result.push(line);
+          result.push(tx.toFixed(3));
+          i += 2;
+          result.push(lines[++i]); // '20'
+          result.push(ty.toFixed(3));
+          continue;
+        }
+      }
+    }
+
+    // レイヤー名にプリフィックスを追加
+    if (code === '8') {
+      const layer = lines[i + 1];
+      result.push(line);
+      if (!layer.startsWith('F')) {
+        result.push(layerPrefix + layer);
+        i++;
+        continue;
+      }
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
+/** 2つのDXFを重ね合わせ（基準点マッチング + 変換 + 合成） */
+function mergeDxfByLatLon(baseDxfText, overlayDxfText, tolerance = 100) {
+  console.log('[DXF重ね合わせ開始]');
+
+  // 基準点を抽出
+  const f01Points = extractLatLonControlPoints(baseDxfText, 'F01');
+  const f03Points = extractLatLonControlPoints(overlayDxfText, 'F03');
+
+  if (f01Points.length === 0) {
+    throw new Error('基本DXFに lat/lon基準点（F01_LATLON_POINT）が見つかりません。');
+  }
+  if (f03Points.length === 0) {
+    throw new Error('重ね合わせDXFに lat/lon基準点（F03_LATLON_POINT）が見つかりません。');
+  }
+
+  // マッチング
+  const matches = matchLatLonControlPoints(f01Points, f03Points, tolerance);
+
+  if (matches.length === 0) {
+    throw new Error('許容誤差 ' + tolerance + 'm 内で対応する基準点が見つかりません。');
+  }
+
+  if (matches.length === 1) {
+    console.log('[警告] 基準点が1点のみです。回転・スケール補正は実行されません。');
+  }
+
+  // 変換パラメータを計算
+  const transform = calculateAffineTransform(matches);
+
+  // オーバーレイDXFを変換
+  const transformedOverlay = transformDxfText(overlayDxfText, transform, 'F03_');
+
+  // 2つのDXFを合成（ENTITIES セクション内で結合）
+  const baseEntitiesStart = baseDxfText.indexOf('  0\n  ENTITIES\n') + '  0\n  ENTITIES\n'.length;
+  const baseEntitiesEnd = baseDxfText.indexOf('  0\n  ENDSEC\n', baseEntitiesStart);
+
+  const overlayEntitiesStart = transformedOverlay.indexOf('  0\n  ENTITIES\n') + '  0\n  ENTITIES\n'.length;
+  const overlayEntitiesEnd = transformedOverlay.indexOf('  0\n  ENDSEC\n', overlayEntitiesStart);
+
+  const mergedDxf =
+    baseDxfText.substring(0, baseEntitiesEnd) +
+    transformedOverlay.substring(overlayEntitiesStart, overlayEntitiesEnd) +
+    baseDxfText.substring(baseEntitiesEnd);
+
+  console.log('[DXF重ね合わせ完了]');
+  console.log('  マッチング点: ' + matches.length);
+  console.log('  平行移動: Δx=' + transform.tx.toFixed(2) + 'mm, Δy=' + transform.ty.toFixed(2) + 'mm');
+  console.log('  回転角: ' + (transform.angle * 180 / Math.PI).toFixed(4) + '°');
+  console.log('  スケール: ' + transform.scale.toFixed(6));
+
+  return mergedDxf;
+}
+
+/** 2つのlat/lon基準点セットをマッチング */
+function matchControlPoints(basePoints, overlayPoints, tolerance = 100) {
+  const matches = [];
+
+  for (const basePoint of basePoints) {
+    let closest = null;
+    let minLatLonDist = Infinity;
+
+    for (const overlayPoint of overlayPoints) {
+      // 経緯度距離を簡易計算
+      const dLat = basePoint.lat - overlayPoint.lat;
+      const dLon = basePoint.lon - overlayPoint.lon;
+      const latLonDist = Math.sqrt(dLat * dLat + dLon * dLon);
+
+      if (latLonDist < minLatLonDist && latLonDist * 111000 < tolerance) {
+        minLatLonDist = latLonDist;
+        closest = overlayPoint;
+      }
+    }
+
+    if (closest) {
+      matches.push({
+        baseX: basePoint.x,
+        baseY: basePoint.y,
+        overlayX: closest.x,
+        overlayY: closest.y,
+        lat: basePoint.lat,
+        lon: basePoint.lon
+      });
+    }
+  }
+
+  return matches;
+}
+
+/** 変換行列を計算（平行移動・回転・スケール） */
+function calculateTransform(controlPoints) {
+  if (controlPoints.length === 0) {
+    throw new Error('マッチする基準点がありません');
+  }
+
+  let translateX = 0, translateY = 0, rotateAngle = 0, scale = 1;
+
+  if (controlPoints.length === 1) {
+    // 平行移動のみ
+    const cp = controlPoints[0];
+    translateX = cp.baseX - cp.overlayX;
+    translateY = cp.baseY - cp.overlayY;
+  } else {
+    // 2点以上：平行移動 + 回転 + スケール
+    const cp1 = controlPoints[0];
+    const cp2 = controlPoints[1];
+
+    // 元データのベクトル
+    const vx1 = cp1.overlayX - cp2.overlayX;
+    const vy1 = cp1.overlayY - cp2.overlayY;
+    const dist1 = Math.sqrt(vx1 * vx1 + vy1 * vy1);
+
+    // ターゲットのベクトル
+    const vx2 = cp1.baseX - cp2.baseX;
+    const vy2 = cp1.baseY - cp2.baseY;
+    const dist2 = Math.sqrt(vx2 * vx2 + vy2 * vy2);
+
+    // スケール計算
+    scale = dist1 > 0 ? dist2 / dist1 : 1;
+
+    // 回転角計算
+    const angle1 = Math.atan2(vy1, vx1);
+    const angle2 = Math.atan2(vy2, vx2);
+    rotateAngle = angle2 - angle1;
+
+    // 平行移動計算（スケール・回転後）
+    const cos = Math.cos(rotateAngle);
+    const sin = Math.sin(rotateAngle);
+    const x1t = vx1 * cos * scale - vy1 * sin * scale;
+    const y1t = vx1 * sin * scale + vy1 * cos * scale;
+    translateX = cp1.baseX - (cp1.overlayX * scale * cos - cp1.overlayY * scale * sin);
+    translateY = cp1.baseY - (cp1.overlayX * scale * sin + cp1.overlayY * scale * cos);
+  }
+
+  return { translateX, translateY, rotateAngle, scale };
+}
+
+/** エンティティを変換 */
+function transformEntity(entity, transform, layerPrefix) {
+  const { translateX, translateY, rotateAngle, scale } = transform;
+  const cos = Math.cos(rotateAngle);
+  const sin = Math.sin(rotateAngle);
+
+  const transformed = { ...entity };
+  transformed.layer = layerPrefix + (entity.layer || 'UNKNOWN');
+
+  // 座標変換
+  if (entity.data.x !== undefined && entity.data.y !== undefined) {
+    const x = entity.data.x;
+    const y = entity.data.y;
+    const xt = x * scale * cos - y * scale * sin + translateX;
+    const yt = x * scale * sin + y * scale * cos + translateY;
+    transformed.data = { ...entity.data, x: xt, y: yt };
+  }
+
+  if (entity.data.x2 !== undefined && entity.data.y2 !== undefined) {
+    const x2 = entity.data.x2;
+    const y2 = entity.data.y2;
+    const x2t = x2 * scale * cos - y2 * scale * sin + translateX;
+    const y2t = x2 * scale * sin + y2 * scale * cos + translateY;
+    transformed.data = { ...transformed.data, x2: x2t, y2: y2t };
+  }
+
+  return transformed;
+}
+
+/** 統合DXFを生成 */
+function mergeDxfEntities(baseDxfText, overlayDxfText, controlPoints, allowScaleCorrection) {
+  const baseEntities = parseDxfText(baseDxfText);
+  const overlayEntities = parseDxfText(overlayDxfText);
+
+  // レイヤーリスト取得
+  const baseLayers = new Set(baseEntities.map(e => e.layer).filter(Boolean));
+  const overlayLayers = new Set(overlayEntities.map(e => e.layer).filter(Boolean));
+
+  // 変換計算
+  const transform = calculateTransform(controlPoints);
+
+  // スケール補正を許可しない場合、スケールを1にリセット
+  if (!allowScaleCorrection) {
+    transform.scale = 1;
+  }
+
+  // overlay エンティティを変換・レイヤー名変更
+  const transformedOverlay = overlayEntities.map(e => transformEntity(e, transform, 'F03_'));
+
+  // base エンティティのレイヤー名を変更
+  const renamedBase = baseEntities.map(e => {
+    const renamed = { ...e };
+    renamed.layer = 'F01_' + (e.layer || 'UNKNOWN');
+    return renamed;
+  });
+
+  // 統合
+  const mergedEntities = [...renamedBase, ...transformedOverlay];
+
+  return mergedEntities;
+}
+
+/** DXFファイルを生成 */
+function generateMergedDxf(entities) {
+  // buildDxf を利用するため、レイヤー情報を集約
+  const layerSet = new Set(entities.map(e => e.layer).filter(Boolean));
+  const layers = Array.from(layerSet).map(name => [name, 1]); // 全て色1(赤)で統一
+
+  // DXFテキストを手動生成
+  const out = [];
+  const push = (...args) => { for (const arg of args) out.push(String(arg)); };
+  const f = n => (Number.isFinite(n) ? n : 0).toFixed(3);
+
+  // ヘッダー
+  push('0', 'SECTION', '2', 'HEADER',
+    '9', '$ACADVER', '1', 'AC1009',
+    '9', '$PDMODE', '70', '34',
+    '9', '$PDSIZE', '40', '0',
+    '0', 'ENDSEC');
+
+  // テーブル
+  push('0', 'SECTION', '2', 'TABLES');
+  push('0', 'TABLE', '2', 'LAYER', '70', String(layers.length));
+  for (const [name, color] of layers) {
+    push('0', 'LAYER', '2', name, '70', '0', '62', String(color), '6', 'CONTINUOUS');
+  }
+  push('0', 'ENDTAB', '0', 'ENDSEC');
+
+  // エンティティ
+  push('0', 'SECTION', '2', 'ENTITIES');
+  for (const entity of entities) {
+    if (entity.type === 'POINT') {
+      push('0', 'POINT', '8', entity.layer,
+        '10', f(entity.data.x || 0), '20', f(entity.data.y || 0), '30', '0.000');
+    } else if (entity.type === 'LINE') {
+      push('0', 'LINE', '8', entity.layer,
+        '10', f(entity.data.x || 0), '20', f(entity.data.y || 0), '30', '0.000',
+        '11', f(entity.data.x2 || 0), '21', f(entity.data.y2 || 0), '31', '0.000');
+    } else if (entity.type === 'TEXT') {
+      push('0', 'TEXT', '8', entity.layer,
+        '10', f(entity.data.x || 0), '20', f(entity.data.y || 0), '30', '0.000',
+        '40', f(1.0), '1', String(entity.data.text || ''),
+        '72', '0', '73', '0',
+        '11', f(entity.data.x || 0), '21', f(entity.data.y || 0), '31', '0.000');
+    }
+  }
+  push('0', 'ENDSEC', '0', 'EOF');
+
+  return out.join('\n');
+}
+
+// 重ね合わせボタンイベント
+mergeUi.mergeBtn.addEventListener('click', async () => {
+  if (!mergeBaseDxfFile || !mergeOverlayDxfFile) {
+    logger.error('ファイル未選択');
+    showMergeError('両方のDXFファイルを選択してください');
+    return;
+  }
+
+  logger.info('機能⑧開始', { baseFile: mergeBaseDxfFile.name, overlayFile: mergeOverlayDxfFile.name });
+  logger.startTimer('feature08');
+
+  hideMergeMessages();
+  mergeUi.mergeBtn.disabled = true;
+  setStatus('mergeStatusBar', 'sb-work', '処理中...');
+
+  try {
+    setMergeProgress(10, 'DXFファイルを読み込み中...');
+    await uiYield();
+
+    logger.info('基本DXF読込');
+    const baseDxfText = await mergeBaseDxfFile.text();
+    logger.success('基本DXF読込完了', { size: baseDxfText.length });
+
+    logger.info('重ね合わせDXF読込');
+    const overlayDxfText = await mergeOverlayDxfFile.text();
+    logger.success('重ね合わせDXF読込完了', { size: overlayDxfText.length });
+
+    setMergeProgress(30, '基準点を抽出中...');
+    await uiYield();
+
+    const baseEntities = parseDxfText(baseDxfText);
+    const overlayEntities = parseDxfText(overlayDxfText);
+
+    // デバッグ出力
+    const baseLayers = new Set(baseEntities.map(e => e.layer));
+    const overlayLayers = new Set(overlayEntities.map(e => e.layer));
+    const basePoints = extractLatLonControlPoints(baseEntities, '');
+    const overlayPoints = extractLatLonControlPoints(overlayEntities, '');
+
+    logger.debug('基本DXF解析結果', { layers: Array.from(baseLayers).sort(), points: baseEntities.filter(e => e.type === 'POINT').length });
+    logger.debug('重ね合わせDXF解析結果', { layers: Array.from(overlayLayers).sort(), points: overlayEntities.filter(e => e.type === 'POINT').length });
+    logger.info('lat/lon基準点検出', { base: basePoints.length, overlay: overlayPoints.length });
+
+    if (basePoints.length === 0) {
+      throw new Error('機能①のDXFに緯度経度ラベル（LATLON_POINT）がありません。存在するレイヤー: ' + Array.from(baseLayers).sort().join(', '));
+    }
+    if (overlayPoints.length === 0) {
+      throw new Error('機能③のDXFに緯度経度ラベル（LATLON_POINT）がありません。存在するレイヤー: ' + Array.from(overlayLayers).sort().join(', '));
+    }
+
+    setMergeProgress(50, `基準点をマッチング中... (base: ${basePoints.length}, overlay: ${overlayPoints.length})`);
+    await uiYield();
+
+    const tolerance = parseFloat(mergeUi.latLonTolerance.value) || 100;
+    logger.info('基準点マッチング開始', { tolerance: tolerance + 'm' });
+    const controlPoints = matchControlPoints(basePoints, overlayPoints, tolerance);
+    logger.success('基準点マッチング完了', { matched: controlPoints.length });
+
+    if (controlPoints.length === 0) {
+      throw new Error(`許容誤差${tolerance}m内で対応する基準点がありません`);
+    }
+
+    if (controlPoints.length === 1) {
+      logger.warn('基準点が1点のみ - 平行移動のみで回転・スケール補正なし');
+      showMergeWarn(`基準点が1点のみです（回転・スケール補正なし、平行移動のみ）`);
+    }
+
+    setMergeProgress(70, `DXFを重ね合わせ中 (基準点: ${controlPoints.length}点)...`);
+    await uiYield();
+
+    const allowScale = mergeUi.allowScaleCorrection.value === 'true';
+    logger.info('DXF重ね合わせ開始');
+    const mergedEntities = mergeDxfEntities(baseDxfText, overlayDxfText, controlPoints, allowScale);
+    logger.success('DXF重ね合わせ完了', { entities: mergedEntities.length });
+
+    setMergeProgress(85, 'DXFファイルを生成中...');
+    await uiYield();
+
+    const mergedDxf = generateMergedDxf(mergedEntities);
+    const filename = timestampedFilename('merged_f01_f03.dxf');
+    downloadTextFile(filename, mergedDxf);
+    logger.success('DXF保存完了', { filename: filename, size: fmtSize(new Blob([mergedDxf]).size) });
+
+    setMergeProgress(100, '完了！');
+    mergeUi.successBox.innerHTML =
+      `DXFを重ね合わせました: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([mergedDxf]).size)}）<br>` +
+      `基準点: ${controlPoints.length}点 ／ エンティティ: ${mergedEntities.length}個<br>` +
+      `機能①レイヤー: F01_* ／ 機能③レイヤー: F03_*`;
+    mergeUi.successBox.style.display = 'block';
+    setStatus('mergeStatusBar', 'sb-ok', '重ね合わせ完了。DXFファイルをJW-CADで開いてください');
+
+    const elapsed = logger.endTimer('feature08');
+    logger.success('機能⑧完了', { elapsed: elapsed + '秒' });
+  } catch (err) {
+    logger.error('機能⑧エラー', { message: err.message });
+    showMergeError(err.message);
+    setStatus('mergeStatusBar', 'sb-err', 'エラーが発生しました');
+  } finally {
+    mergeUi.mergeBtn.disabled = false;
+  }
+});
+
+setStatus('mergeStatusBar', 'sb-hint', '2つのDXFファイルをドロップしてください');
 
 /* -------------------- ⑤ 地番検索 -------------------- */
 var _chibanMap = null;
@@ -4852,6 +7851,48 @@ async function _searchChibanAddr() {
   }
 }
 </script>
+<script>
+/* ==================== 機能⑨ ログパネル イベントハンドラ ==================== */
+document.addEventListener('DOMContentLoaded', () => {
+  const logPanel = document.getElementById('logPanel');
+  const logToggleBtn = document.getElementById('logToggleBtn');
+  const logDebugToggle = document.getElementById('logDebugToggle');
+  const logSaveBtn = document.getElementById('logSaveBtn');
+  const logClearBtn = document.getElementById('logClearBtn');
+  const logConsole = document.getElementById('logConsole');
+
+  // 展開/折畳ボタン
+  logToggleBtn.addEventListener('click', () => {
+    logPanel.classList.toggle('collapsed');
+    logToggleBtn.textContent = logPanel.classList.contains('collapsed') ? '▲' : '▼';
+  });
+
+  // デバッグモード切り替え
+  logDebugToggle.addEventListener('click', () => {
+    logger.debugMode = !logger.debugMode;
+    logDebugToggle.style.opacity = logger.debugMode ? '1' : '0.5';
+    logger.info('デバッグモード: ' + (logger.debugMode ? 'ON' : 'OFF'));
+  });
+
+  // 保存ボタン
+  logSaveBtn.addEventListener('click', () => {
+    logger.save();
+  });
+
+  // クリアボタン
+  logClearBtn.addEventListener('click', () => {
+    if (confirm('ログをクリアしますか？')) {
+      logger.clear();
+      logger.info('ログをクリアしました');
+    }
+  });
+
+  // 初期化メッセージ
+  logger.info('アプリケーション起動');
+  logDebugToggle.style.opacity = logger.debugMode ? '1' : '0.5';
+});
+</script>
+
 </body>
 </html>
 
