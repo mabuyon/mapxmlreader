@@ -1847,7 +1847,7 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
               </div>
               <div class="field">
                 <label for="mergeLatLonTolerance">許容誤差（m）</label>
-                <input id="mergeLatLonTolerance" type="number" min="0.1" step="0.1" value="100">
+                <input id="mergeLatLonTolerance" type="number" min="0.1" step="0.1" value="300">
               </div>
             </div>
           </div>
@@ -1882,12 +1882,13 @@ DEM5A/B/C: 5m メッシュ Z 1-15</div>
           </div>
           <div class="section">
             <h2>位置合わせ方法</h2>
-            <p class="hint">両方のDXFに含まれるlat/lon基準点（POINTエンティティ）を自動検出し、以下の順に計算します：</p>
+            <p class="hint">両方のDXFに含まれるlat/lon基準点（POINTエンティティ）を自動検出し、まず各DXFを地理参照してから重ね合わせます。補助的に近傍一致点も集計します。</p>
             <ul class="hint" style="padding-left:1.4em;line-height:2.2;margin-top:4px">
-              <li><b>2点以上の場合</b>：平行移動 + 回転 + 必要に応じてスケール補正</li>
-              <li><b>1点のみの場合</b>：平行移動のみ（警告表示）</li>
-              <li><b>基準点なし</b>：中止（エラー表示）</li>
+              <li><b>通常</b>：lat/lon基準点から平行移動 + 回転 + 必要に応じてスケール補正</li>
+              <li><b>近傍一致点が少ない場合</b>：個別地理参照フィットを優先して変換</li>
+              <li><b>基準点なし / 別エリア</b>：中止（エラー表示）</li>
             </ul>
+            <p class="hint" style="margin-top:8px">初期値の許容誤差は <b>300m</b> です。別地域DXFの誤結合を避けつつ、基準点の丸め差は吸収します。</p>
           </div>
           <div class="section">
             <h2>出力レイヤー</h2>
@@ -2744,9 +2745,10 @@ function appendLatLonEntitiesToDxf(dxfText, latlonData) {
 
 /* DXFテキストからlat/lon基準点を抽出 */
 function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
-  logger.info('【機能⑧】DXFからlat/lon基準点抽出開始', {
+  logger.info('【機能⑧ ステップ1】DXFからlat/lon基準点抽出開始', {
     sourceLabel: sourceLabel,
-    dxfLength: dxfText.length
+    dxfLength: dxfText.length,
+    先頭100文字: dxfText.substring(0, 100)
   });
 
   const results = {
@@ -2764,6 +2766,8 @@ function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
   let entitiesFound = 0;
   const layerSet = new Set();
 
+  logger.info('【機能⑧ ステップ1-1】レイヤー検索開始');
+
   // レイヤ情報を抽出する簡易的な方法：グループコード 8 で検索
   const layer8Regex = /^\s*8\n(.+?)$/gm;
   while ((match = layer8Regex.exec(dxfText)) !== null) {
@@ -2773,24 +2777,20 @@ function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
 
   results.allLayers = Array.from(layerSet).sort();
 
-  logger.info('【機能⑧】検出レイヤー', {
+  logger.success('【機能⑧ ステップ1-2】検出レイヤー', {
     レイヤー数: results.allLayers.length,
-    レイヤー一覧: results.allLayers.slice(0, 20).join(', ')
+    レイヤー一覧: results.allLayers.join(', ')
   });
 
   // レイヤ "5" のエンティティを抽出
-  // DXFフォーマットは以下のような構造：
-  // 0          <- Entity type indicator
-  // POINT      <- Entity type
-  // 8          <- Layer code
-  // 5          <- Layer name
-  // 10         <- X coordinate
-  // 12345.67   <- X value
-  // 20         <- Y coordinate
-  // 98765.43   <- Y value
+  logger.info('【機能⑧ ステップ2】レイヤ5のエンティティ抽出開始');
 
   const lines = dxfText.split('\n');
   let i = 0;
+  let pointCount = 0;
+  let textCount = 0;
+  let otherLayerCount = 0;
+
   while (i < lines.length) {
     const line = lines[i].trim();
 
@@ -2829,6 +2829,15 @@ function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
               y: y,
               layer: currentLayer
             });
+            pointCount++;
+
+            if (pointCount <= 3) {
+              logger.debug('【機能⑧】POINT[' + (pointCount - 1) + ']抽出', {
+                x: x.toFixed(2),
+                y: y.toFixed(2),
+                layer: currentLayer
+              });
+            }
           }
         } else if (entityType === 'TEXT' || entityType === 'MTEXT') {
           // TEXT座標とテキスト内容を抽出
@@ -2854,22 +2863,73 @@ function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
               text: textContent,
               layer: currentLayer
             });
+            textCount++;
+
+            if (textCount <= 3) {
+              logger.debug('【機能⑧】TEXT[' + (textCount - 1) + ']抽出', {
+                text: textContent,
+                x: x.toFixed(2),
+                y: y.toFixed(2),
+                text_length: textContent.length,
+                text_bytes: textContent.split('').map(c => c.charCodeAt(0)).join(',')
+              });
+            }
           }
         }
+      } else if (entityType === 'POINT' || entityType === 'TEXT' || entityType === 'MTEXT') {
+        otherLayerCount++;
       }
     }
     i++;
   }
 
-  logger.info('【機能⑧】レイヤ5のエンティティ抽出結果', {
+  logger.success('【機能⑧ ステップ2-1】レイヤ5エンティティ抽出完了', {
     POINT数: results.pointsInLayer5.length,
     TEXT数: results.textsInLayer5.length,
-    MTEXT数: results.textsInLayer5.filter(t => t.type === 'MTEXT').length
+    MTEXT数: results.textsInLayer5.filter(t => t.type === 'MTEXT').length,
+    他レイヤーのPOINT_TEXT: otherLayerCount
   });
 
   // テキストからlon/latを抽出
-  for (const txt of results.textsInLayer5) {
+  logger.info('【機能⑧ ステップ3】lon/lat抽出開始', {
+    処理対象TEXT数: results.textsInLayer5.length
+  });
+
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (let idx = 0; idx < results.textsInLayer5.length; idx++) {
+    const txt = results.textsInLayer5[idx];
     const latlonMatch = parseLatLonFromText(txt.text);
+
+    // 詳細ログ：すべてのTEXTを処理（最初の10個）
+    if (idx < 10) {
+      let logParseResult;
+      if (!latlonMatch) {
+        logParseResult = 'null - 解析失敗';
+      } else if (latlonMatch.isPartial) {
+        logParseResult = {
+          type: latlonMatch.type,
+          lon: latlonMatch.lon !== null ? latlonMatch.lon.toFixed(6) : null,
+          lat: latlonMatch.lat !== null ? latlonMatch.lat.toFixed(6) : null
+        };
+      } else {
+        logParseResult = {
+          lon: latlonMatch.lon !== null ? latlonMatch.lon.toFixed(6) : null,
+          lat: latlonMatch.lat !== null ? latlonMatch.lat.toFixed(6) : null
+        };
+      }
+
+      logger.info('【機能⑧ ステップ3-' + (idx + 1) + '】TEXT[' + idx + ']内容と解析結果', {
+        text_raw: txt.text,
+        text_length: txt.text.length,
+        text_charCodes: txt.text.split('').slice(0, 20).map(c => c.charCodeAt(0)).join(','),
+        x_mm: txt.x.toFixed(2),
+        y_mm: txt.y.toFixed(2),
+        parseResult: logParseResult
+      });
+    }
+
     if (latlonMatch && latlonMatch.lon !== null && latlonMatch.lat !== null) {
       results.latlonPoints.push({
         textId: txt.text.substring(0, 20),  // 最初の20文字をID として使用
@@ -2879,66 +2939,163 @@ function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
         textX: txt.x,
         textY: txt.y
       });
+      successCount++;
+    } else {
+      failureCount++;
     }
   }
 
-  logger.info('【機能⑧】lon/lat抽出結果', {
-    抽出数: results.latlonPoints.length,
-    サンプル: results.latlonPoints.slice(0, 3).map(p => ({
+  logger.success('【機能⑧ ステップ3-完】lon/lat抽出完了', {
+    成功数: successCount,
+    失敗数: failureCount,
+    成功率: (successCount / results.textsInLayer5.length * 100).toFixed(1) + '%',
+    抽出されたlat_lon値_サンプル: results.latlonPoints.slice(0, 10).map((p, i) => {
+      return 'P' + (i + 1) + ': lon=' + p.lon.toFixed(6) + ', lat=' + p.lat.toFixed(6);
+    }).join(' | '),
+    詳細サンプル: results.latlonPoints.slice(0, 5).map((p, i) => ({
+      index: i,
       lon: p.lon.toFixed(6),
-      lat: p.lat.toFixed(6)
+      lat: p.lat.toFixed(6),
+      lon値: p.lon,
+      lat値: p.lat,
+      textId: p.textId
     }))
   });
 
   // POINTとTEXTを対応付け
+  logger.info('【機能⑧ ステップ4】POINT-TEXT対応付け開始', {
+    POINT数: results.pointsInLayer5.length,
+    TEXT数: results.textsInLayer5.length,
+    対応判定の距離閾値_mm: 1000
+  });
+
   const matchedPoints = [];
   const usedTextIndices = new Set();
+  const MATCH_DISTANCE_THRESHOLD = 1000; // mm
 
-  for (const point of results.pointsInLayer5) {
-    // 最も近いTEXTを探す
-    let nearestText = null;
-    let nearestDist = Infinity;
-    let nearestIdx = -1;
+  // ステップ4-1: すべてのTEXTを解析してlon/lat情報を取得
+  const textParsed = [];
+  for (let idx = 0; idx < results.textsInLayer5.length; idx++) {
+    const txt = results.textsInLayer5[idx];
+    const parsed = parseLatLonFromText(txt.text);
+    textParsed.push({
+      index: idx,
+      text: txt.text,
+      x: txt.x,
+      y: txt.y,
+      parsed: parsed
+    });
+  }
 
-    for (let idx = 0; idx < results.textsInLayer5.length; idx++) {
-      if (usedTextIndices.has(idx)) continue;
+  logger.debug('【機能⑧ ステップ4-1】TEXT解析結果', {
+    total: textParsed.length,
+    完全版lon_lat: textParsed.filter(t => t.parsed && t.parsed.lon && t.parsed.lat).length,
+    部分版: textParsed.filter(t => t.parsed && t.parsed.isPartial).length
+  });
 
-      const txt = results.textsInLayer5[idx];
-      const dist = Math.hypot(point.x - txt.x, point.y - txt.y);
-
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestText = txt;
-        nearestIdx = idx;
-      }
+  // ステップ4-2: lon と lat が分かれている場合は対応付け
+  // lon:xxx と隣同士の lat:xxx を対応付ける
+  const mergedTextPairs = [];
+  for (let idx = 0; idx < textParsed.length; idx++) {
+    const current = textParsed[idx];
+    if (!current.parsed || current.parsed.lon === null || current.parsed.lat !== null) {
+      continue;  // lon だけではない
     }
 
-    // 距離が一定以内なら対応
-    const MATCH_DISTANCE_THRESHOLD = 1000; // mm
-    if (nearestText && nearestDist <= MATCH_DISTANCE_THRESHOLD) {
-      const latlonMatch = parseLatLonFromText(nearestText.text);
-      if (latlonMatch && latlonMatch.lon !== null && latlonMatch.lat !== null) {
-        matchedPoints.push({
-          id: nearestText.text.substring(0, 20),
-          source: sourceLabel,
-          cadX: point.x,
-          cadY: point.y,
-          lon: latlonMatch.lon,
-          lat: latlonMatch.lat,
-          pointLayer: '5',
-          labelLayer: '5',
-          distance: nearestDist
+    // lon:xxx が見つかった。次のTEXTが lat:xxx か確認
+    if (idx + 1 < textParsed.length) {
+      const next = textParsed[idx + 1];
+      if (next.parsed && next.parsed.lat !== null && next.parsed.lon === null) {
+        // 対応付けできた
+        mergedTextPairs.push({
+          lonIndex: idx,
+          latIndex: idx + 1,
+          lon: current.parsed.lon,
+          lat: next.parsed.lat,
+          distance: Math.hypot(current.x - next.x, current.y - next.y)
         });
-
-        usedTextIndices.add(nearestIdx);
+        usedTextIndices.add(idx);
+        usedTextIndices.add(idx + 1);
       }
     }
   }
 
-  logger.success('【機能⑧】POINT-TEXT対応付け完了', {
+  logger.success('【機能⑧ ステップ4-2】lon/lat分割対応付け', {
+    対応数: mergedTextPairs.length,
+    対応付けられたlon_lat値: mergedTextPairs.slice(0, 10).map((p, i) => {
+      return 'P' + (i + 1) + ': lon=' + p.lon.toFixed(6) + ', lat=' + p.lat.toFixed(6) + ' (距離' + p.distance.toFixed(0) + 'mm)';
+    }).join(' | '),
+    詳細例: mergedTextPairs.slice(0, 5).map((p, i) => ({
+      index: i,
+      lon: p.lon.toFixed(6),
+      lat: p.lat.toFixed(6),
+      lon値: p.lon,
+      lat値: p.lat,
+      距離_mm: p.distance.toFixed(2)
+    }))
+  });
+
+  // ステップ4-3: POINTと（lon,lat）ペアを対応付け
+  for (let pIdx = 0; pIdx < results.pointsInLayer5.length; pIdx++) {
+    const point = results.pointsInLayer5[pIdx];
+
+    // 最も近いlon,latペアを探す
+    let nearestPair = null;
+    let nearestLonDist = Infinity;
+
+    for (const pair of mergedTextPairs) {
+      const lonTxt = results.textsInLayer5[pair.lonIndex];
+      const dist = Math.hypot(point.x - lonTxt.x, point.y - lonTxt.y);
+
+      if (dist < nearestLonDist) {
+        nearestLonDist = dist;
+        nearestPair = pair;
+      }
+    }
+
+    if (pIdx < 3) {
+      logger.debug('【機能⑧】POINT[' + pIdx + ']対応付け', {
+        point_x: point.x.toFixed(2),
+        point_y: point.y.toFixed(2),
+        最近傍lon_lat_ペア: nearestPair ? (nearestPair.lon.toFixed(6) + ',' + nearestPair.lat.toFixed(6)) : 'なし',
+        距離_mm: nearestLonDist.toFixed(2),
+        閾値内か: nearestLonDist <= MATCH_DISTANCE_THRESHOLD ? 'yes' : 'no'
+      });
+    }
+
+    // 距離が一定以内なら対応
+    if (nearestPair && nearestLonDist <= MATCH_DISTANCE_THRESHOLD) {
+      matchedPoints.push({
+        id: 'CP_' + (matchedPoints.length + 1),
+        source: sourceLabel,
+        cadX: point.x,
+        cadY: point.y,
+        lon: nearestPair.lon,
+        lat: nearestPair.lat,
+        pointLayer: '5',
+        labelLayer: '5',
+        distance: nearestLonDist
+      });
+    }
+  }
+
+  logger.success('【機能⑧ ステップ4-完】POINT-TEXT対応付け完了', {
     対応数: matchedPoints.length,
     未対応POINT数: results.pointsInLayer5.length - matchedPoints.length,
-    未対応TEXT数: results.textsInLayer5.length - usedTextIndices.size
+    使用TEXT数: usedTextIndices.size,
+    最終基準点のlon_lat値: matchedPoints.slice(0, 10).map((p, i) => {
+      return 'CP' + (i + 1) + ': lon=' + p.lon.toFixed(6) + ', lat=' + p.lat.toFixed(6);
+    }).join(' | '),
+    詳細な対応付け結果: matchedPoints.slice(0, 5).map((p, i) => ({
+      index: i,
+      id: p.id,
+      lon: p.lon.toFixed(6),
+      lat: p.lat.toFixed(6),
+      lon値: p.lon,
+      lat値: p.lat,
+      POINT_CAD座標: '(' + p.cadX.toFixed(2) + ', ' + p.cadY.toFixed(2) + ')',
+      距離_mm: p.distance.toFixed(2)
+    }))
   });
 
   if (results.pointsInLayer5.length - matchedPoints.length > 0) {
@@ -2948,6 +3105,26 @@ function readLatLonPointsFromDXF(dxfText, sourceLabel = 'F01') {
   }
 
   results.latlonPoints = matchedPoints;
+
+  logger.info('【機能⑧ ステップ5】最終結果サマリー', {
+    source: sourceLabel,
+    全レイヤー数: results.allLayers.length,
+    検出レイヤー: results.allLayers.join(', '),
+    レイヤ5_POINT数: results.pointsInLayer5.length,
+    レイヤ5_TEXT数: results.textsInLayer5.length,
+    lon_lat解析成功数: results.latlonPoints.length,
+    最終基準点数: matchedPoints.length,
+    最終基準点のlon_lat値: matchedPoints.slice(0, 20).map((p, i) => {
+      return 'CP' + (i + 1) + ': lon=' + p.lon.toFixed(6) + ', lat=' + p.lat.toFixed(6);
+    }).join(' | '),
+    座標範囲: {
+      lon_min: (Math.min(...matchedPoints.map(p => p.lon))).toFixed(6),
+      lon_max: (Math.max(...matchedPoints.map(p => p.lon))).toFixed(6),
+      lat_min: (Math.min(...matchedPoints.map(p => p.lat))).toFixed(6),
+      lat_max: (Math.max(...matchedPoints.map(p => p.lat))).toFixed(6)
+    },
+    警告: results.warnings.length > 0 ? results.warnings.join('; ') : 'なし'
+  });
 
   return results;
 }
@@ -2965,30 +3142,47 @@ function parseLatLonFromText(text) {
   if (m) {
     lon = parseFloat(m[1]);
     lat = parseFloat(m[2]);
+    return (Number.isFinite(lon) && Number.isFinite(lat)) ? { lon: lon, lat: lat } : null;
   }
 
   // 形式2: lon, lat の順で2つの数値（カンマ区切り）
-  if (lon === null) {
-    const fmt2 = /([0-9.\-]+)\s*,\s*([0-9.\-]+)/;
-    m = fmt2.exec(text);
-    if (m) {
-      lon = parseFloat(m[1]);
-      lat = parseFloat(m[2]);
-    }
+  const fmt2 = /([0-9.\-]+)\s*,\s*([0-9.\-]+)/;
+  m = fmt2.exec(text);
+  if (m) {
+    lon = parseFloat(m[1]);
+    lat = parseFloat(m[2]);
+    return (Number.isFinite(lon) && Number.isFinite(lat)) ? { lon: lon, lat: lat } : null;
   }
 
   // 形式3: 2つの数値が改行で区切られている
-  if (lon === null) {
-    const fmt3 = /^([0-9.\-]+)\s*\n\s*([0-9.\-]+)$/m;
-    m = fmt3.exec(text);
-    if (m) {
-      lon = parseFloat(m[1]);
-      lat = parseFloat(m[2]);
+  const fmt3 = /^([0-9.\-]+)\s*\n\s*([0-9.\-]+)$/m;
+  m = fmt3.exec(text);
+  if (m) {
+    lon = parseFloat(m[1]);
+    lat = parseFloat(m[2]);
+    return (Number.isFinite(lon) && Number.isFinite(lat)) ? { lon: lon, lat: lat } : null;
+  }
+
+  // 【新規】形式4: 単独の "lon:138.xxx" または "lat:36.xxx"
+  // 後で対応付けるため、どちらか一方だけでも返す
+  const fmtLon = /^\s*lon[:\s]+([0-9.\-]+)\s*$/i;
+  const fmtLat = /^\s*lat[:\s]+([0-9.\-]+)\s*$/i;
+
+  let mLon = fmtLon.exec(text);
+  let mLat = fmtLat.exec(text);
+
+  if (mLon) {
+    lon = parseFloat(mLon[1]);
+    if (Number.isFinite(lon)) {
+      return { lon: lon, lat: null, isPartial: true, type: 'lon' };
     }
   }
 
-  if (lon !== null && lat !== null && Number.isFinite(lon) && Number.isFinite(lat)) {
-    return { lon: lon, lat: lat };
+  if (mLat) {
+    lat = parseFloat(mLat[1]);
+    if (Number.isFinite(lat)) {
+      return { lon: null, lat: lat, isPartial: true, type: 'lat' };
+    }
   }
 
   return null;
@@ -3046,7 +3240,7 @@ function generateLatLonControlPoints(opts) {
   logger.info('【座標計算ステップ2】オリジン・オフセット値の確認', {
     ox_mm: ox.toFixed(2),
     oy_mm: oy.toFixed(2),
-    意味: 'DXF座標 = 公共座標 * 1000 + offset'
+    意味: 'DXF座標(相対) = 公共座標 * 1000 - offset'
   });
 
   // 【20点表示への完全切り替え】
@@ -3082,11 +3276,13 @@ function generateLatLonControlPoints(opts) {
       const gridDxfX = x0 + gridStepX * col;
       const gridDxfY = y0 + gridStepY * row;
 
-      // DXF座標 → 公共座標への変換
+      // DXF座標(相対) → 公共座標への変換
+      // generateCoordinateDxf() では DXF = 公共座標(mm) - offset で原点移動している。
+      // そのため逆変換は offset を戻す必要がある。
       // 【重要】DXF座標系は[東(mm), 北(mm)]なので、X/Yが入れ替わる
-      // 正しい計算: pubX = (DXF_Y - oy) / 1000, pubY = (DXF_X - ox) / 1000
-      const gridPubX = (gridDxfY - oy) / 1000;  // 公共座標 北向き X (m)
-      const gridPubY = (gridDxfX - ox) / 1000;  // 公共座標 東向き Y (m)
+      // 正しい計算: pubX = (DXF_Y + oy) / 1000, pubY = (DXF_X + ox) / 1000
+      const gridPubX = (gridDxfY + oy) / 1000;  // 公共座標 北向き X (m)
+      const gridPubY = (gridDxfX + ox) / 1000;  // 公共座標 東向き Y (m)
 
       // 公共座標 → lon/lat 変換
       const gridLatLon = coordinateToLatLon(gridPubX, gridPubY, zone);
@@ -7108,89 +7304,13 @@ function clearMergeFile(isBase) {
   setStatus('mergeStatusBar', 'sb-hint', '2つのDXFファイルをドロップしてください');
 }
 
-// UIイベント
-mergeUi.baseDxfZone.addEventListener('click', () => mergeUi.baseDxfInput.click());
-mergeUi.baseDxfZone.addEventListener('dragover', e => { e.preventDefault(); mergeUi.baseDxfZone.classList.add('drag-over'); });
-mergeUi.baseDxfZone.addEventListener('dragleave', () => mergeUi.baseDxfZone.classList.remove('drag-over'));
-mergeUi.baseDxfZone.addEventListener('drop', e => {
-  e.preventDefault();
-  mergeUi.baseDxfZone.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) setMergeFile(true, e.dataTransfer.files[0]);
-});
-mergeUi.baseDxfInput.addEventListener('change', () => {
-  if (mergeUi.baseDxfInput.files[0]) setMergeFile(true, mergeUi.baseDxfInput.files[0]);
-});
-mergeUi.baseDxfRemove.addEventListener('click', e => {
-  e.stopPropagation();
-  clearMergeFile(true);
-});
-
-mergeUi.overlayDxfZone.addEventListener('click', () => mergeUi.overlayDxfInput.click());
-mergeUi.overlayDxfZone.addEventListener('dragover', e => { e.preventDefault(); mergeUi.overlayDxfZone.classList.add('drag-over'); });
-mergeUi.overlayDxfZone.addEventListener('dragleave', () => mergeUi.overlayDxfZone.classList.remove('drag-over'));
-mergeUi.overlayDxfZone.addEventListener('drop', e => {
-  e.preventDefault();
-  mergeUi.overlayDxfZone.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) setMergeFile(false, e.dataTransfer.files[0]);
-});
-mergeUi.overlayDxfInput.addEventListener('change', () => {
-  if (mergeUi.overlayDxfInput.files[0]) setMergeFile(false, mergeUi.overlayDxfInput.files[0]);
-});
-mergeUi.overlayDxfRemove.addEventListener('click', e => {
-  e.stopPropagation();
-  clearMergeFile(false);
-});
-
-// 【新規】DXFを重ね合わせボタンのイベントリスナー
-mergeUi.mergeBtn.addEventListener('click', async () => {
-  if (!mergeBaseDxfFile || !mergeOverlayDxfFile) return;
-
-  mergeUi.mergeBtn.disabled = true;
-  hideMergeMessages();
-  setMergeProgress(0, 'DXFファイルを読み込み中...');
-  setStatus('mergeStatusBar', 'sb-work', '重ね合わせ処理中...');
-
-  try {
-    setMergeProgress(20, '基本DXFを読み込み中...');
-    await uiYield();
-    const baseDxfText = await mergeBaseDxfFile.text();
-
-    setMergeProgress(40, '重ね合わせDXFを読み込み中...');
-    await uiYield();
-    const overlayDxfText = await mergeOverlayDxfFile.text();
-
-    setMergeProgress(60, '基準点を検出・マッチング中...');
-    await uiYield();
-    const tolerance = parseFloat(mergeUi.latLonTolerance.value) || 100;
-
-    const mergedDxf = mergeDxfByLatLon(baseDxfText, overlayDxfText, tolerance);
-
-    setMergeProgress(90, '重ね合わせDXFを生成中...');
-    await uiYield();
-
-    const baseFileName = mergeBaseDxfFile.name.replace(/\.[^.]+$/, '');
-    const overlayFileName = mergeOverlayDxfFile.name.replace(/\.[^.]+$/, '');
-    const filename = timestampedFilename(baseFileName + '_merged_with_' + overlayFileName + '.dxf');
-
-    downloadTextFile(filename, mergedDxf);
-
-    mergeUi.successBox.innerHTML =
-      `重ね合わせ完了: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([mergedDxf]).size)}）<br>` +
-      `基本DXF: ${escapeHtml(mergeBaseDxfFile.name)}<br>` +
-      `重ね合わせDXF: ${escapeHtml(mergeOverlayDxfFile.name)}<br>` +
-      `レイヤープリフィックス: F01_（基本）、F03_（重ね合わせ）`;
-    mergeUi.successBox.style.display = 'block';
-
-    setMergeProgress(100, '完了！');
-    setStatus('mergeStatusBar', 'sb-ok', '重ね合わせ完了。DXFファイルをJW-CADで開いてください');
-  } catch (err) {
-    showMergeError(err.message);
-    setStatus('mergeStatusBar', 'sb-err', 'エラーが発生しました。DXFファイルを確認してください');
-    console.error(err);
-  } finally {
-    mergeUi.mergeBtn.disabled = false;
-  }
-});
+// UIイベントは機能⑧ ステージ1実装（末尾のIIFE）が一元管理します。
+// 旧VER2.00のドロップゾーン/入力/削除/重ね合わせボタンのリスナーは、
+// 同一要素への二重登録（クリックで input.click() が二重発火しダイアログが
+// 再度開く不具合）を避けるため削除しました。
+// 旧VER2.00の重ね合わせボタンハンドラ（mergeDxfByLatLon版）は、機能⑧
+// ステージ1実装（末尾のIIFE）と同一ボタンへ二重登録となるため削除しました。
+// mergeDxfByLatLon 等のパーサ／重ね合わせロジックはステージ2で再利用するため残します。
 
 /* ================== DXFパーサー・重ね合わせロジック ================== */
 
@@ -7842,107 +7962,371 @@ function generateMergedDxf(entities) {
   return out.join('\n');
 }
 
-// 重ね合わせボタンイベント
-mergeUi.mergeBtn.addEventListener('click', async () => {
-  if (!mergeBaseDxfFile || !mergeOverlayDxfFile) {
-    logger.error('ファイル未選択');
-    showMergeError('両方のDXFファイルを選択してください');
-    return;
+/* ================== 機能⑧ ステージ2: 座標変換つきDXF重ね合わせ ==================
+ * マッチング(matchLatLonControlPoints)と変換計算(calculateAffineTransform)は
+ * ステージ1の readLatLonPointsFromDXF が返す {cadX,cadY,lon,lat} 形式と互換なため再利用。
+ * 座標変換・結合は buildDxf のフォーマット（空白パディング付きコード行）に対し
+ * 確実に動作するよう、group-code ペア単位で新規実装する。 */
+
+/** ENTITIESセクション内のみ座標へアフィン変換を適用し、レイヤー名へプリフィックスを付与する。
+ *  HEADER($EXTMIN等)やTABLES(VPORT等)の座標は変換しない。
+ *  transform = {tx, ty, angle, scale}（overlay座標→base座標へ写す）。
+ *  恒等変換(tx=ty=angle=0, scale=1)を渡せばレイヤー名付与のみ行う。 */
+function applyTransformToDxfEntities(dxfText, transform, layerPrefix) {
+  const cos = Math.cos(transform.angle), sin = Math.sin(transform.angle);
+  const sc = transform.scale;
+  const f = n => (Number.isFinite(n) ? n : 0).toFixed(3);
+  const lines = dxfText.split('\n');
+  const out = [];
+  let section = null, awaitSectionName = false;
+  for (let i = 0; i < lines.length; i += 2) {
+    const codeLine = lines[i];
+    const valueLine = i + 1 < lines.length ? lines[i + 1] : '';
+    const code = codeLine.trim();
+    if (code === '0') {
+      const v = valueLine.trim();
+      if (v === 'SECTION') awaitSectionName = true;
+      else if (v === 'ENDSEC') section = null;
+    } else if (code === '2' && awaitSectionName) {
+      section = valueLine.trim();
+      awaitSectionName = false;
+    }
+    const inEntities = section === 'ENTITIES';
+    // レイヤー名(コード8)へプリフィックス
+    if (inEntities && code === '8') {
+      out.push(codeLine, layerPrefix + valueLine.trim());
+      continue;
+    }
+    // X座標(10-18)と直後のY座標(20-28)をペアで変換（Z=30台は不変）
+    if (inEntities && /^1[0-8]$/.test(code) &&
+        i + 3 < lines.length && lines[i + 2].trim() === String(Number(code) + 10)) {
+      const x = parseFloat(valueLine);
+      const y = parseFloat(lines[i + 3]);
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        const xt = x * sc * cos - y * sc * sin + transform.tx;
+        const yt = x * sc * sin + y * sc * cos + transform.ty;
+        out.push(codeLine, f(xt), lines[i + 2], f(yt));
+        i += 2; // Yペアも消費
+        continue;
+      }
+    }
+    out.push(codeLine, valueLine);
+  }
+  return out.join('\n');
+}
+
+/** ENTITIESセクションの中身（エンティティ部分の行配列）を返す。SECTIONヘッダとENDSECは除く。 */
+function extractDxfEntityLines(dxfText) {
+  const lines = dxfText.split('\n');
+  const out = [];
+  let section = null, awaitSectionName = false, collecting = false;
+  for (let i = 0; i < lines.length; i += 2) {
+    const codeLine = lines[i];
+    const valueLine = i + 1 < lines.length ? lines[i + 1] : '';
+    const code = codeLine.trim();
+    const v = valueLine.trim();
+    if (code === '0') {
+      if (v === 'SECTION') awaitSectionName = true;
+      else if (v === 'ENDSEC') { if (section === 'ENTITIES') collecting = false; section = null; }
+    } else if (code === '2' && awaitSectionName) {
+      section = v; awaitSectionName = false;
+      if (section === 'ENTITIES') { collecting = true; continue; } // "2/ENTITIES" ヘッダは除外
+    }
+    if (collecting) out.push(codeLine, valueLine);
+  }
+  return out;
+}
+
+/** LAYERテーブルからレイヤー定義 [{name,color,linetype,flags}] を取得する。 */
+function getDxfLayerDefs(dxfText) {
+  const lines = dxfText.split('\n');
+  const defs = [];
+  let awaitSectionName = false, awaitTableName = false, inLayerTable = false, cur = null;
+  for (let i = 0; i < lines.length; i += 2) {
+    const code = lines[i].trim();
+    const valueLine = i + 1 < lines.length ? lines[i + 1] : '';
+    const v = valueLine.trim();
+    if (code === '0') {
+      if (v === 'SECTION') awaitSectionName = true;
+      else if (v === 'ENDSEC') { inLayerTable = false; if (cur) { defs.push(cur); cur = null; } }
+      else if (v === 'TABLE') awaitTableName = true;
+      else if (v === 'ENDTAB') { if (cur) { defs.push(cur); cur = null; } inLayerTable = false; }
+      else if (v === 'LAYER' && inLayerTable) { if (cur) defs.push(cur); cur = { name: '', color: '7', linetype: 'CONTINUOUS', flags: '0' }; }
+    } else if (code === '2') {
+      if (awaitSectionName) { awaitSectionName = false; }
+      else if (awaitTableName) { inLayerTable = (v === 'LAYER'); awaitTableName = false; }
+      else if (cur) cur.name = v;
+    } else if (code === '62' && cur) cur.color = v;
+    else if (code === '6' && cur) cur.linetype = v;
+    else if (code === '70' && cur) cur.flags = v;
+  }
+  return defs;
+}
+
+/** レイヤー定義配列からLAYERテーブルの行配列を生成する。 */
+function buildLayerTablePairs(defs) {
+  const out = ['  0', 'TABLE', '  2', 'LAYER', ' 70', String(defs.length)];
+  for (const d of defs) {
+    out.push('  0', 'LAYER', '  2', d.name, ' 70', d.flags || '0', ' 62', d.color || '7', '  6', d.linetype || 'CONTINUOUS');
+  }
+  out.push('  0', 'ENDTAB');
+  return out;
+}
+
+/** baseDxfTextのLAYERテーブル全体を newLayerPairs で差し替える。 */
+function rebuildDxfLayerTable(dxfText, newLayerPairs) {
+  const lines = dxfText.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i += 2) {
+    const codeLine = lines[i];
+    const valueLine = i + 1 < lines.length ? lines[i + 1] : '';
+    // "0 TABLE" の直後が "2 LAYER" ならLAYERテーブル開始
+    if (codeLine.trim() === '0' && valueLine.trim() === 'TABLE' &&
+        i + 3 < lines.length && lines[i + 2].trim() === '2' && lines[i + 3].trim() === 'LAYER') {
+      out.push(...newLayerPairs);
+      // 元のLAYERテーブルを "0 ENDTAB" まで読み飛ばす
+      let j = i;
+      while (j < lines.length) {
+        if (lines[j].trim() === '0' && (j + 1 < lines.length ? lines[j + 1].trim() : '') === 'ENDTAB') { j += 2; break; }
+        j += 2;
+      }
+      i = j - 2; // forの +=2 で次へ
+      continue;
+    }
+    out.push(codeLine, valueLine);
+  }
+  return out.join('\n');
+}
+
+/** baseのENTITIESセクションのENDSEC直前へ overlayEntityLines を挿入する。 */
+function spliceOverlayEntities(dxfText, overlayEntityLines) {
+  const lines = dxfText.split('\n');
+  const out = [];
+  let section = null, awaitSectionName = false, inserted = false;
+  for (let i = 0; i < lines.length; i += 2) {
+    const codeLine = lines[i];
+    const valueLine = i + 1 < lines.length ? lines[i + 1] : '';
+    const code = codeLine.trim();
+    const v = valueLine.trim();
+    if (code === '0' && v === 'ENDSEC' && section === 'ENTITIES' && !inserted) {
+      for (const pairLine of overlayEntityLines) out.push(pairLine);
+      inserted = true;
+    }
+    if (code === '0') {
+      if (v === 'SECTION') awaitSectionName = true;
+      else if (v === 'ENDSEC') section = null;
+    } else if (code === '2' && awaitSectionName) {
+      section = v; awaitSectionName = false;
+    }
+    out.push(codeLine, valueLine);
+  }
+  return out.join('\n');
+}
+
+function summarizeLatLonControlPoints(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const lons = points.map(p => p.lon).filter(Number.isFinite);
+  const lats = points.map(p => p.lat).filter(Number.isFinite);
+  if (lons.length === 0 || lats.length === 0) return null;
+  return {
+    count: points.length,
+    lonMin: Math.min(...lons),
+    lonMax: Math.max(...lons),
+    latMin: Math.min(...lats),
+    latMax: Math.max(...lats),
+    centerLon: lons.reduce((sum, v) => sum + v, 0) / lons.length,
+    centerLat: lats.reduce((sum, v) => sum + v, 0) / lats.length
+  };
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.sqrt(a));
+}
+
+function formatLatLonSummary(summary) {
+  if (!summary) return '基準点なし';
+  return '中心=(' + summary.centerLat.toFixed(6) + ', ' + summary.centerLon.toFixed(6) + '), ' +
+         '範囲 lat ' + summary.latMin.toFixed(6) + '〜' + summary.latMax.toFixed(6) + ', ' +
+         'lon ' + summary.lonMin.toFixed(6) + '〜' + summary.lonMax.toFixed(6) + ' (' + summary.count + '点)';
+}
+
+function fitSimilarityTransformFromLatLon(points, refLat) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const metersPerDegLat = 111000;
+  const metersPerDegLon = 111000 * Math.cos(refLat * Math.PI / 180);
+  const samples = points.map(p => ({
+    gx: p.lon * metersPerDegLon,
+    gy: p.lat * metersPerDegLat,
+    cadX: p.cadX,
+    cadY: p.cadY
+  }));
+
+  const centroidGeo = [
+    samples.reduce((sum, p) => sum + p.gx, 0) / samples.length,
+    samples.reduce((sum, p) => sum + p.gy, 0) / samples.length
+  ];
+  const centroidCad = [
+    samples.reduce((sum, p) => sum + p.cadX, 0) / samples.length,
+    samples.reduce((sum, p) => sum + p.cadY, 0) / samples.length
+  ];
+
+  let a = 0, b = 0, denom = 0;
+  for (const p of samples) {
+    const sx = p.gx - centroidGeo[0];
+    const sy = p.gy - centroidGeo[1];
+    const dx = p.cadX - centroidCad[0];
+    const dy = p.cadY - centroidCad[1];
+    a += sx * dx + sy * dy;
+    b += sx * dy - sy * dx;
+    denom += sx * sx + sy * sy;
+  }
+  if (denom <= 0) return null;
+
+  const scale = Math.sqrt(a * a + b * b) / denom;
+  const angle = Math.atan2(b, a);
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const tx = centroidCad[0] - scale * (c * centroidGeo[0] - s * centroidGeo[1]);
+  const ty = centroidCad[1] - scale * (s * centroidGeo[0] + c * centroidGeo[1]);
+
+  let sumErr = 0, maxErr = 0;
+  for (const p of samples) {
+    const fitX = scale * (c * p.gx - s * p.gy) + tx;
+    const fitY = scale * (s * p.gx + c * p.gy) + ty;
+    const err = Math.hypot(p.cadX - fitX, p.cadY - fitY);
+    sumErr += err;
+    maxErr = Math.max(maxErr, err);
   }
 
-  logger.info('機能⑧開始', { baseFile: mergeBaseDxfFile.name, overlayFile: mergeOverlayDxfFile.name });
-  logger.startTimer('feature08');
-
-  hideMergeMessages();
-  mergeUi.mergeBtn.disabled = true;
-  setStatus('mergeStatusBar', 'sb-work', '処理中...');
-
-  try {
-    setMergeProgress(10, 'DXFファイルを読み込み中...');
-    await uiYield();
-
-    logger.info('基本DXF読込');
-    const baseDxfText = await mergeBaseDxfFile.text();
-    logger.success('基本DXF読込完了', { size: baseDxfText.length });
-
-    logger.info('重ね合わせDXF読込');
-    const overlayDxfText = await mergeOverlayDxfFile.text();
-    logger.success('重ね合わせDXF読込完了', { size: overlayDxfText.length });
-
-    setMergeProgress(30, '基準点を抽出中...');
-    await uiYield();
-
-    const baseEntities = parseDxfText(baseDxfText);
-    const overlayEntities = parseDxfText(overlayDxfText);
-
-    // デバッグ出力
-    const baseLayers = new Set(baseEntities.map(e => e.layer));
-    const overlayLayers = new Set(overlayEntities.map(e => e.layer));
-    const basePoints = extractLatLonControlPoints(baseEntities, '');
-    const overlayPoints = extractLatLonControlPoints(overlayEntities, '');
-
-    logger.debug('基本DXF解析結果', { layers: Array.from(baseLayers).sort(), points: baseEntities.filter(e => e.type === 'POINT').length });
-    logger.debug('重ね合わせDXF解析結果', { layers: Array.from(overlayLayers).sort(), points: overlayEntities.filter(e => e.type === 'POINT').length });
-    logger.info('lat/lon基準点検出', { base: basePoints.length, overlay: overlayPoints.length });
-
-    if (basePoints.length === 0) {
-      throw new Error('機能①のDXFに緯度経度ラベル（LATLON_POINT）がありません。存在するレイヤー: ' + Array.from(baseLayers).sort().join(', '));
+  return {
+    scale,
+    angle,
+    tx,
+    ty,
+    error: {
+      mean: sumErr / samples.length,
+      max: maxErr,
+      rmse: Math.sqrt(samples.length ? samples.reduce((sum, p) => {
+        const fitX = scale * (c * p.gx - s * p.gy) + tx;
+        const fitY = scale * (s * p.gx + c * p.gy) + ty;
+        const err = Math.hypot(p.cadX - fitX, p.cadY - fitY);
+        return sum + err * err;
+      }, 0) / samples.length : 0)
     }
-    if (overlayPoints.length === 0) {
-      throw new Error('機能③のDXFに緯度経度ラベル（LATLON_POINT）がありません。存在するレイヤー: ' + Array.from(overlayLayers).sort().join(', '));
-    }
+  };
+}
 
-    setMergeProgress(50, `基準点をマッチング中... (base: ${basePoints.length}, overlay: ${overlayPoints.length})`);
-    await uiYield();
+function composeSimilarityTransforms(baseFit, overlayFit) {
+  if (!baseFit || !overlayFit) return null;
+  const scale = baseFit.scale / overlayFit.scale;
+  const angle = baseFit.angle - overlayFit.angle;
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const tx = baseFit.tx - scale * (c * overlayFit.tx - s * overlayFit.ty);
+  const ty = baseFit.ty - scale * (s * overlayFit.tx + c * overlayFit.ty);
+  return { scale, angle, tx, ty };
+}
 
-    const tolerance = parseFloat(mergeUi.latLonTolerance.value) || 100;
-    logger.info('基準点マッチング開始', { tolerance: tolerance + 'm' });
-    const controlPoints = matchControlPoints(basePoints, overlayPoints, tolerance);
-    logger.success('基準点マッチング完了', { matched: controlPoints.length });
+/** ステージ2: 基準点マッチング→アフィン変換→結合 し、統合DXFテキストと統計を返す。
+ *  basePoints/overlayPoints は readLatLonPointsFromDXF().latlonPoints （{cadX,cadY,lon,lat}）。 */
+function buildMergedDxfStage2(baseDxfText, overlayDxfText, basePoints, overlayPoints, tolerance, allowScale) {
+  const baseSummary = summarizeLatLonControlPoints(basePoints);
+  const overlaySummary = summarizeLatLonControlPoints(overlayPoints);
+  const centerDistance = (baseSummary && overlaySummary)
+    ? haversineMeters(baseSummary.centerLat, baseSummary.centerLon, overlaySummary.centerLat, overlaySummary.centerLon)
+    : null;
 
-    if (controlPoints.length === 0) {
-      throw new Error(`許容誤差${tolerance}m内で対応する基準点がありません`);
-    }
+  if (centerDistance !== null && centerDistance > Math.max(tolerance * 10, 5000)) {
+    logger.warn('【機能⑧】対応点なし診断', {
+      許容誤差_m: tolerance,
+      基準DXF: baseSummary ? {
+        count: baseSummary.count,
+        centerLat: baseSummary.centerLat.toFixed(6),
+        centerLon: baseSummary.centerLon.toFixed(6),
+        latMin: baseSummary.latMin.toFixed(6),
+        latMax: baseSummary.latMax.toFixed(6),
+        lonMin: baseSummary.lonMin.toFixed(6),
+        lonMax: baseSummary.lonMax.toFixed(6)
+      } : '基準点なし',
+      重ね合わせDXF: overlaySummary ? {
+        count: overlaySummary.count,
+        centerLat: overlaySummary.centerLat.toFixed(6),
+        centerLon: overlaySummary.centerLon.toFixed(6),
+        latMin: overlaySummary.latMin.toFixed(6),
+        latMax: overlaySummary.latMax.toFixed(6),
+        lonMin: overlaySummary.lonMin.toFixed(6),
+        lonMax: overlaySummary.lonMax.toFixed(6)
+      } : '基準点なし',
+      中心距離_m: centerDistance.toFixed(1)
+    });
 
-    if (controlPoints.length === 1) {
-      logger.warn('基準点が1点のみ - 平行移動のみで回転・スケール補正なし');
-      showMergeWarn(`基準点が1点のみです（回転・スケール補正なし、平行移動のみ）`);
-    }
-
-    setMergeProgress(70, `DXFを重ね合わせ中 (基準点: ${controlPoints.length}点)...`);
-    await uiYield();
-
-    const allowScale = mergeUi.allowScaleCorrection.value === 'true';
-    logger.info('DXF重ね合わせ開始');
-    const mergedEntities = mergeDxfEntities(baseDxfText, overlayDxfText, controlPoints, allowScale);
-    logger.success('DXF重ね合わせ完了', { entities: mergedEntities.length });
-
-    setMergeProgress(85, 'DXFファイルを生成中...');
-    await uiYield();
-
-    const mergedDxf = generateMergedDxf(mergedEntities);
-    const filename = timestampedFilename('merged_f01_f03.dxf');
-    downloadTextFile(filename, mergedDxf);
-    logger.success('DXF保存完了', { filename: filename, size: fmtSize(new Blob([mergedDxf]).size) });
-
-    setMergeProgress(100, '完了！');
-    mergeUi.successBox.innerHTML =
-      `DXFを重ね合わせました: <b>${escapeHtml(filename)}</b>（${fmtSize(new Blob([mergedDxf]).size)}）<br>` +
-      `基準点: ${controlPoints.length}点 ／ エンティティ: ${mergedEntities.length}個<br>` +
-      `機能①レイヤー: F01_* ／ 機能③レイヤー: F03_*`;
-    mergeUi.successBox.style.display = 'block';
-    setStatus('mergeStatusBar', 'sb-ok', '重ね合わせ完了。DXFファイルをJW-CADで開いてください');
-
-    const elapsed = logger.endTimer('feature08');
-    logger.success('機能⑧完了', { elapsed: elapsed + '秒' });
-  } catch (err) {
-    logger.error('機能⑧エラー', { message: err.message });
-    showMergeError(err.message);
-    setStatus('mergeStatusBar', 'sb-err', 'エラーが発生しました');
-  } finally {
-    mergeUi.mergeBtn.disabled = false;
+    throw new Error(
+      '許容誤差 ' + tolerance + 'm 内で対応する基準点が見つかりません。' +
+      '<br>基準DXF: ' + formatLatLonSummary(baseSummary) +
+      '<br>重ね合わせDXF: ' + formatLatLonSummary(overlaySummary) +
+      '<br>基準点中心の距離: 約' + centerDistance.toFixed(0) + 'm（別エリアのDXFの可能性があります）'
+    );
   }
-});
+
+  // 1. 参考用に「同一lat/lon近傍マッチ」を算出（厳密一致が少なくても処理継続）
+  const matches = matchLatLonControlPoints(basePoints, overlayPoints, tolerance);
+
+  // 2. 各DXFの lat/lon→CAD 対応から個別に地理参照フィットし、DXF間変換を合成
+  const refLat = (baseSummary && overlaySummary)
+    ? (baseSummary.centerLat + overlaySummary.centerLat) / 2
+    : ((basePoints[0]?.lat || 35) + (overlayPoints[0]?.lat || 35)) / 2;
+  const baseFit = fitSimilarityTransformFromLatLon(basePoints, refLat);
+  const overlayFit = fitSimilarityTransformFromLatLon(overlayPoints, refLat);
+  const transform = composeSimilarityTransforms(baseFit, overlayFit);
+
+  if (!transform) {
+    throw new Error('lat/lon基準点から座標変換を計算できませんでした。基準点数を確認してください。');
+  }
+
+  transform.error = {
+    mean: ((baseFit?.error?.mean || 0) + (overlayFit?.error?.mean || 0)) / 2,
+    max: Math.max(baseFit?.error?.max || 0, overlayFit?.error?.max || 0),
+    rmse: Math.max(baseFit?.error?.rmse || 0, overlayFit?.error?.rmse || 0)
+  };
+  if (!allowScale) transform.scale = 1;
+
+  // 3. overlay を変換しF03_プリフィックス、base は変換なしでF01_プリフィックス
+  const overlayTransformed = applyTransformToDxfEntities(overlayDxfText, transform, 'F03_');
+  const overlayBody = extractDxfEntityLines(overlayTransformed);
+  let baseOut = applyTransformToDxfEntities(baseDxfText, { tx: 0, ty: 0, angle: 0, scale: 1 }, 'F01_');
+
+  // 4. LAYERテーブルを統合（色・線種を保持しつつプリフィックス付与）
+  const baseLayers = getDxfLayerDefs(baseDxfText).map(d => ({ ...d, name: 'F01_' + d.name }));
+  const overlayLayers = getDxfLayerDefs(overlayDxfText).map(d => ({ ...d, name: 'F03_' + d.name }));
+  baseOut = rebuildDxfLayerTable(baseOut, buildLayerTablePairs([...baseLayers, ...overlayLayers]));
+
+  // 5. overlay本体をbaseのENTITIESへ挿入
+  const merged = spliceOverlayEntities(baseOut, overlayBody);
+
+  return {
+    dxf: merged,
+    matches,
+    transform,
+    method: 'geofit',
+    diagnostics: {
+      centerDistance,
+      exactMatchCount: matches.length,
+      basePointCount: basePoints.length,
+      overlayPointCount: overlayPoints.length,
+      baseFitError: baseFit?.error || null,
+      overlayFitError: overlayFit?.error || null
+    }
+  };
+}
+
+// 旧VER2.00の重ね合わせボタンハンドラ（parseDxfText/mergeDxfEntities版）は、
+// 機能⑧ ステージ1実装（末尾のIIFE）と同一ボタンへ二重登録となるため削除しました。
+// parseDxfText / extractLatLonControlPoints / matchControlPoints / mergeDxfEntities /
+// generateMergedDxf 等のロジックは（不使用だが）参考用に残します。
 
 setStatus('mergeStatusBar', 'sb-hint', '2つのDXFファイルをドロップしてください');
 
@@ -8186,46 +8570,100 @@ async function _searchChibanAddr() {
 
   // 基準DXF読み込み
   function loadBaseDxf(file) {
+    ui.progressLabel.textContent = '基準DXFを読み込み中...';
+    ui.progressFill.style.width = '30%';
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      logger.error('【機能⑧】基準DXF読み込みエラー', { error: reader.error });
+      ui.errorBox.innerHTML = '<strong>✗ ファイル読み込みエラー</strong><br>' + reader.error;
+      ui.progressLabel.textContent = 'エラー';
+      ui.progressFill.style.width = '0%';
+    };
+
     reader.onload = (e) => {
-      mergeBaseDxfText = e.target.result;
-      ui.baseName.textContent = file.name;
-      ui.baseSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
-      ui.baseBadge.style.display = 'block';
+      try {
+        mergeBaseDxfText = e.target.result;
 
-      // lat/lon情報を読み取り
-      mergeBaseLatlonData = readLatLonPointsFromDXF(mergeBaseDxfText, 'F01');
+        if (typeof mergeBaseDxfText !== 'string') {
+          throw new Error('DXFテキストが文字列ではありません: ' + typeof mergeBaseDxfText);
+        }
 
-      logger.info('【機能⑧】基準DXF読み込み完了', {
-        filename: file.name,
-        size: file.size,
-        latlonPoints: mergeBaseLatlonData.latlonPoints.length
-      });
+        ui.baseName.textContent = file.name;
+        ui.baseSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+        ui.baseBadge.style.display = 'block';
 
-      updateMergeButton();
+        ui.progressLabel.textContent = '基準DXFのlat/lon解析中...';
+        ui.progressFill.style.width = '50%';
+
+        // lat/lon情報を読み取り
+        mergeBaseLatlonData = readLatLonPointsFromDXF(mergeBaseDxfText, 'F01');
+
+        logger.info('【機能⑧】基準DXF読み込み完了', {
+          filename: file.name,
+          size: file.size,
+          latlonPoints: mergeBaseLatlonData.latlonPoints.length,
+          warnings: mergeBaseLatlonData.warnings
+        });
+
+        ui.progressFill.style.width = '50%';
+        updateMergeButton();
+      } catch (err) {
+        logger.error('【機能⑧】基準DXF処理エラー', { message: err.message, stack: err.stack });
+        ui.errorBox.innerHTML = '<strong>✗ 処理エラー</strong><br>' + err.message;
+        ui.progressLabel.textContent = 'エラー';
+        ui.progressFill.style.width = '0%';
+      }
     };
     reader.readAsText(file);
   }
 
   // 重ね合わせDXF読み込み
   function loadOverlayDxf(file) {
+    ui.progressLabel.textContent = '重ね合わせDXFを読み込み中...';
+    ui.progressFill.style.width = '30%';
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      logger.error('【機能⑧】重ね合わせDXF読み込みエラー', { error: reader.error });
+      ui.errorBox.innerHTML = '<strong>✗ ファイル読み込みエラー</strong><br>' + reader.error;
+      ui.progressLabel.textContent = 'エラー';
+      ui.progressFill.style.width = '0%';
+    };
+
     reader.onload = (e) => {
-      mergeOverlayDxfText = e.target.result;
-      ui.overlayName.textContent = file.name;
-      ui.overlaySize.textContent = (file.size / 1024).toFixed(1) + ' KB';
-      ui.overlayBadge.style.display = 'block';
+      try {
+        mergeOverlayDxfText = e.target.result;
 
-      // lat/lon情報を読み取り
-      mergeOverlayLatlonData = readLatLonPointsFromDXF(mergeOverlayDxfText, 'F03');
+        if (typeof mergeOverlayDxfText !== 'string') {
+          throw new Error('DXFテキストが文字列ではありません: ' + typeof mergeOverlayDxfText);
+        }
 
-      logger.info('【機能⑧】重ね合わせDXF読み込み完了', {
-        filename: file.name,
-        size: file.size,
-        latlonPoints: mergeOverlayLatlonData.latlonPoints.length
-      });
+        ui.overlayName.textContent = file.name;
+        ui.overlaySize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+        ui.overlayBadge.style.display = 'block';
 
-      updateMergeButton();
+        ui.progressLabel.textContent = '重ね合わせDXFのlat/lon解析中...';
+        ui.progressFill.style.width = '50%';
+
+        // lat/lon情報を読み取り
+        mergeOverlayLatlonData = readLatLonPointsFromDXF(mergeOverlayDxfText, 'F03');
+
+        logger.info('【機能⑧】重ね合わせDXF読み込み完了', {
+          filename: file.name,
+          size: file.size,
+          latlonPoints: mergeOverlayLatlonData.latlonPoints.length,
+          warnings: mergeOverlayLatlonData.warnings
+        });
+
+        ui.progressFill.style.width = '50%';
+        updateMergeButton();
+      } catch (err) {
+        logger.error('【機能⑧】重ね合わせDXF処理エラー', { message: err.message, stack: err.stack });
+        ui.errorBox.innerHTML = '<strong>✗ 処理エラー</strong><br>' + err.message;
+        ui.progressLabel.textContent = 'エラー';
+        ui.progressFill.style.width = '0%';
+      }
     };
     reader.readAsText(file);
   }
@@ -8282,30 +8720,89 @@ async function _searchChibanAddr() {
       const basePoints = mergeBaseLatlonData.latlonPoints;
       const overlayPoints = mergeOverlayLatlonData.latlonPoints;
 
-      logger.info('【機能⑧】基準点確認', {
-        basePoints: basePoints.length,
-        overlayPoints: overlayPoints.length
+      if (!basePoints || basePoints.length === 0) {
+        throw new Error('基準DXFのlat/lon基準点が見つかりません');
+      }
+      if (!overlayPoints || overlayPoints.length === 0) {
+        throw new Error('重ね合わせDXFのlat/lon基準点が見つかりません');
+      }
+
+      logger.success('【機能⑧ 第1段階】基準点取得確認', {
+        basePoints数: basePoints.length,
+        overlayPoints数: overlayPoints.length
       });
 
-      // 今後の重ね合わせ計算の準備
+      // ===== 第2段階：対応点マッチング → 座標変換 → 結合 =====
+      const toleranceEl = document.getElementById('mergeLatLonTolerance');
+      const allowScaleEl = document.getElementById('mergeAllowScaleCorrection');
+      const tolerance = toleranceEl ? (parseFloat(toleranceEl.value) || 100) : 100;
+      const allowScale = allowScaleEl ? (allowScaleEl.value === 'true') : true;
+
+      ui.progressLabel.textContent = '対応点マッチング・座標変換中...';
+      ui.progressFill.style.width = '60%';
+      await uiYield();
+
+      logger.info('【機能⑧ 第2段階】重ね合わせ開始', { 許容誤差_m: tolerance, スケール補正: allowScale });
+
+      const result = buildMergedDxfStage2(
+        mergeBaseDxfText, mergeOverlayDxfText, basePoints, overlayPoints, tolerance, allowScale);
+
+      const t = result.transform;
+      logger.success('【機能⑧ 第2段階】座標変換パラメータ算出', {
+        変換方式: result.method || 'match',
+        マッチング点数: result.matches.length,
+        基準点数: { base: basePoints.length, overlay: overlayPoints.length },
+        平行移動_mm: { x: t.tx.toFixed(2), y: t.ty.toFixed(2) },
+        回転_度: (t.angle * 180 / Math.PI).toFixed(4),
+        スケール: t.scale.toFixed(6),
+        誤差_mm: t.error ? { 平均: t.error.mean.toFixed(2), 最大: t.error.max.toFixed(2) } : 'N/A'
+      });
+
+      if ((result.method || 'match') === 'match' && result.matches.length === 1) {
+        logger.warn('【機能⑧】対応点が1点のみ - 平行移動のみ（回転・スケール補正なし）');
+      }
+
+      ui.progressLabel.textContent = '統合DXFを生成中...';
+      ui.progressFill.style.width = '90%';
+      await uiYield();
+
+      const baseFileName = (ui.baseName.textContent || 'F01').replace(/\.[^.]+$/, '');
+      const overlayFileName = (ui.overlayName.textContent || 'F03').replace(/\.[^.]+$/, '');
+      const filename = timestampedFilename(baseFileName + '_merged_with_' + overlayFileName + '.dxf');
+      const blobSize = new Blob([result.dxf]).size;
+
+      downloadTextFile(filename, result.dxf);
+
       ui.progressFill.style.width = '100%';
-      ui.progressLabel.textContent = '読み取り確認完了';
+      ui.progressLabel.textContent = '完了！';
+      setStatus('mergeStatusBar', 'sb-ok', '重ね合わせ完了。DXFファイルをJW-CADで開いてください');
 
-      logger.success('【機能⑧】第1段階（読み取り確認）完了', {
-        basePoints: basePoints.length,
-        overlayPoints: overlayPoints.length,
-        メッセージ: 'lat/lon基準点の読み取り確認が完了しました。次のステップで重ね合わせを実行します。'
+      logger.success('【機能⑧ 第2段階】統合DXF出力完了', {
+        ファイル名: filename,
+        サイズ: fmtSize(blobSize),
+        マッチング点数: result.matches.length,
+        変換方式: result.method || 'match'
       });
 
+      const warnHtml = (result.method || 'match') === 'match' && result.matches.length === 1
+        ? '<br><span style="color:#b8860b">⚠ 対応点が1点のみのため平行移動のみ適用（回転・スケール補正なし）</span>'
+        : '';
+      const methodLabel = (result.method === 'geofit')
+        ? 'lat/lon地理参照フィット'
+        : '対応点マッチング';
       ui.successBox.innerHTML =
-        '<strong>✓ 読み取り確認完了</strong><br>' +
-        '基準DXF: ' + basePoints.length + '点<br>' +
-        '重ね合わせDXF: ' + overlayPoints.length + '点<br>' +
-        '<br>ログで詳細を確認してから、次のステップへ進んでください。';
-
-      updateMergeButton();
+        '<strong>✓ 重ね合わせ完了</strong><br>' +
+        'ファイル: <b>' + escapeHtml(filename) + '</b>（' + fmtSize(blobSize) + '）<br><br>' +
+        '変換方式: ' + methodLabel + '<br>' +
+        '近傍一致点: ' + result.matches.length + '点<br>' +
+        '基準点数: 基準=' + basePoints.length + '点 / 重ね合わせ=' + overlayPoints.length + '点<br>' +
+        '平行移動: Δx=' + t.tx.toFixed(2) + 'mm, Δy=' + t.ty.toFixed(2) + 'mm<br>' +
+        '回転角: ' + (t.angle * 180 / Math.PI).toFixed(4) + '°<br>' +
+        'スケール: ' + t.scale.toFixed(6) + (allowScale ? '' : '（補正なし固定）') + '<br>' +
+        'レイヤー: 基準=F01_*／重ね合わせ=F03_*' + warnHtml;
+      ui.successBox.style.display = 'block';
     } catch (err) {
-      logger.error('【機能⑧】エラー', { message: err.message });
+      logger.error('【機能⑧】エラー', { message: err.message, stack: err.stack });
       ui.errorBox.innerHTML = '<strong>✗ エラー</strong><br>' + err.message;
       ui.progressLabel.textContent = 'エラー';
       ui.progressFill.style.width = '0%';
@@ -8357,4 +8854,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
-
